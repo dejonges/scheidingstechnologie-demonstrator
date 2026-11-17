@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Destillatie-demonstrator</title>
+<meta name="description" content="Interactieve McCabe-Thiele-demonstrator voor binaire destillatie (Scheidingstechnieken, KU Leuven).">
+<style>
+:root {
+  --bg: #f4f5f7; --paneel: #ffffff; --rand: #d9dce1; --tekst: #24272c; --zacht: #5f6670; --fijn: #8b929c;
+  --rood: #c0392b; --blauw: #1f5fa8; --oranje: #e67e22; --paars: #8e44ad; --groen: #2e7d4f;
+  --grid: #e6e8eb; --grid2: #f2f3f5; --as: #555b63; --diag: #9aa0a8;
+  --fout-bg: #fdecea; --fout-rand: #e8a29b; --waarsch-bg: #fff4e5; --waarsch-rand: #f0c27b;
+  --info-bg: #eaf2fb; --info-rand: #a9c6e8; --ok-bg: #e9f5ee; --ok-rand: #9fd0b2;
+  --veld: #f7f8fa; --accent: #1f5fa8; --ref: #a7adb5; --kolom: #fbfcfd;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --paneel: #1e2125; --rand: #343840; --tekst: #e6e8eb; --zacht: #a9b0b9; --fijn: #7d848e;
+    --rood: #ef6b5b; --blauw: #6aa7ec; --oranje: #f39c4a; --paars: #c08ad8; --groen: #5cbf86;
+    --grid: #2c3036; --grid2: #24272c; --as: #9aa1aa; --diag: #6b727b;
+    --fout-bg: #3a2220; --fout-rand: #7d3b33; --waarsch-bg: #3a2f1c; --waarsch-rand: #7d6332;
+    --info-bg: #1c2a3a; --info-rand: #345a85; --ok-bg: #1b3326; --ok-rand: #2f6b49;
+    --veld: #262a2f; --accent: #6aa7ec; --ref: #5d646d; --kolom: #23272c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --paneel: #1e2125; --rand: #343840; --tekst: #e6e8eb; --zacht: #a9b0b9; --fijn: #7d848e;
+  --rood: #ef6b5b; --blauw: #6aa7ec; --oranje: #f39c4a; --paars: #c08ad8; --groen: #5cbf86;
+  --grid: #2c3036; --grid2: #24272c; --as: #9aa1aa; --diag: #6b727b;
+  --fout-bg: #3a2220; --fout-rand: #7d3b33; --waarsch-bg: #3a2f1c; --waarsch-rand: #7d6332;
+  --info-bg: #1c2a3a; --info-rand: #345a85; --ok-bg: #1b3326; --ok-rand: #2f6b49;
+  --veld: #262a2f; --accent: #6aa7ec; --ref: #5d646d; --kolom: #23272c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--tekst); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rand); background: var(--paneel); }
+header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+header .sub { color: var(--zacht); font-size: 12.5px; }
+header .acties { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+select, input[type=number], button { font: inherit; color: var(--tekst); }
+select { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+button { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.aan { background: var(--accent); color: #fff; border-color: var(--accent); }
+main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns: 300px minmax(260px, 330px) minmax(380px, 1fr); grid-template-areas: "in kolom mt" "in extra extra" "in tabel tabel"; align-items: start; }
+.paneel { background: var(--paneel); border: 1px solid var(--rand); border-radius: 10px; padding: 12px; min-width: 0; }
+#invoer { grid-area: in; }
+#kolomPaneel { grid-area: kolom; }
+#mtPaneel { grid-area: mt; }
+#tabelPaneel { grid-area: tabel; }
+#extraPaneel { grid-area: extra; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 20px; }
+#extraPaneel > div { min-width: 0; }
+#rfx { cursor: pointer; }
+@media (max-width: 1150px) {
+  main { grid-template-columns: 300px 1fr; grid-template-areas: "in mt" "in kolom" "extra extra" "tabel tabel"; }
+}
+@media (max-width: 760px) {
+  main { grid-template-columns: 1fr; grid-template-areas: "mt" "in" "kolom" "extra" "tabel"; padding: 10px 10px 20px; }
+  header { padding: 10px; }
+}
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--zacht); margin: 0 0 8px; font-weight: 650; }
+fieldset { border: 0; border-top: 1px solid var(--rand); margin: 10px 0 0; padding: 8px 0 0; }
+fieldset:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+legend { font-weight: 650; font-size: 13px; padding: 0; margin-bottom: 4px; }
+.rij { display: grid; grid-template-columns: 92px 1fr 74px; gap: 6px; align-items: center; margin: 5px 0; }
+.rij label { font-size: 13px; white-space: nowrap; }
+.rij input[type=range] { width: 100%; accent-color: var(--accent); }
+.rij input[type=number] { width: 74px; background: var(--veld); border: 1px solid var(--rand); border-radius: 5px; padding: 2px 4px; text-align: right; }
+.rij input[type=number]:disabled { color: var(--zacht); }
+.rij.radio label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.rij.uit { opacity: .78; }
+.rij.uit input[type=range] { opacity: .45; }
+.keuze { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; font-size: 13px; }
+.keuze label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.uitleg { font-size: 12px; color: var(--zacht); margin: 4px 0; }
+.klein { font-size: 12px; color: var(--zacht); }
+sub, sup { font-size: 72%; line-height: 0; }
+.ov { text-decoration: overline; }
+.meldingen > div { border-radius: 7px; padding: 6px 9px; margin: 6px 0; font-size: 13px; border: 1px solid; }
+.m-fout { background: var(--fout-bg); border-color: var(--fout-rand) !important; }
+.m-waarsch { background: var(--waarsch-bg); border-color: var(--waarsch-rand) !important; }
+.m-info { background: var(--info-bg); border-color: var(--info-rand) !important; }
+.m-ok { background: var(--ok-bg); border-color: var(--ok-rand) !important; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 6px; font-size: 13px; }
+.toolbar .groep { display: flex; gap: 4px; flex-wrap: wrap; }
+.toolbar label { display: flex; gap: 3px; align-items: center; cursor: pointer; }
+svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+#mt { cursor: crosshair; }
+#leesuit { font-variant-numeric: tabular-nums; color: var(--zacht); font-size: 12px; min-height: 18px; }
+.legenda { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--zacht); margin-top: 4px; }
+.legenda span::before { content: ""; display: inline-block; width: 18px; height: 0; border-top: 2.5px solid currentColor; vertical-align: middle; margin-right: 5px; }
+.legenda .l-ev { color: var(--blauw); } .legenda .l-wl { color: var(--rood); }
+.legenda .l-q::before { border-top: 2px dashed var(--tekst); } .legenda .l-q { color: var(--zacht); }
+.legenda .l-ps::before { border-top: 2px dashed var(--blauw); }
+.legenda .l-ref::before { border-top: 2px dashed var(--ref); }
+.tabellen { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 18px; }
+.tabellen.metref { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 650; color: var(--zacht); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; padding: 4px 4px; border-bottom: 1px solid var(--rand); }
+td { padding: 3px 4px; border-bottom: 1px solid var(--grid); }
+td.w { text-align: right; white-space: nowrap; }
+td.r { text-align: right; color: var(--fijn); white-space: nowrap; }
+tr.nadruk td { font-weight: 650; }
+details { margin-top: 10px; }
+summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.platentabel { max-height: 320px; overflow: auto; margin-top: 6px; }
+.platentabel table td, .platentabel table th { text-align: right; }
+.probeer ol { margin: 6px 0 0 18px; padding: 0; font-size: 13px; }
+.probeer li { margin: 3px 0; }
+.voet { font-size: 11.5px; color: var(--fijn); margin-top: 10px; }
+/* SVG-stijlen */
+.s-grid { stroke: var(--grid); stroke-width: 1; }
+.s-grid2 { stroke: var(--grid2); stroke-width: .7; }
+.s-as { stroke: var(--as); stroke-width: 1.2; fill: none; }
+.s-tick { fill: var(--zacht); font-size: 11px; }
+.s-astitel { fill: var(--tekst); font-size: 12.5px; }
+.s-diag { stroke: var(--diag); stroke-width: 1.2; stroke-dasharray: 5 4; fill: none; }
+.s-ev { stroke: var(--blauw); stroke-width: 2.6; fill: none; }
+.s-ps { stroke: var(--blauw); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; opacity: .85; }
+.s-wl { stroke: var(--rood); stroke-width: 2.2; fill: none; }
+.s-wlmin { stroke: var(--zacht); stroke-width: 1.3; fill: none; stroke-dasharray: 2 3; }
+.s-q { stroke: var(--tekst); stroke-width: 1.5; fill: none; stroke-dasharray: 7 3 2 3; }
+.s-trap { stroke: var(--tekst); stroke-width: 1.15; fill: none; }
+.s-trapfeed { stroke: var(--paars); stroke-width: 2.2; fill: none; }
+.s-totaal { stroke: var(--groen); stroke-width: 1; fill: none; opacity: .8; }
+.s-ref { stroke: var(--ref); stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; }
+.s-reftrap { stroke: var(--ref); stroke-width: 1; fill: none; }
+.s-nr, .s-nrfeed, .s-labr, .s-labz, .s-lab { paint-order: stroke; stroke: var(--paneel); stroke-width: 3px; stroke-linejoin: round; }
+.s-nr { fill: var(--tekst); font-size: 10.5px; }
+.s-nrfeed { fill: var(--paars); font-size: 10.5px; font-weight: 700; }
+.s-punt { fill: var(--rood); }
+.s-lab { fill: var(--tekst); font-size: 11.5px; }
+.s-labr { fill: var(--rood); font-size: 11.5px; }
+.s-labz { fill: var(--zacht); font-size: 11px; }
+.s-pinch { fill: var(--paneel); stroke: var(--tekst); stroke-width: 1.4; }
+.s-zoom { fill: var(--accent); fill-opacity: .08; stroke: var(--accent); stroke-dasharray: 4 3; }
+.s-kolom { fill: var(--kolom); stroke: var(--as); stroke-width: 1.6; }
+.s-plaat { stroke: var(--zacht); stroke-width: 1.1; }
+.s-plaatfeed { stroke: var(--paars); stroke-width: 2.2; }
+.s-damp { stroke: var(--rood); stroke-width: 2; fill: none; }
+.s-vl { stroke: var(--blauw); stroke-width: 2; fill: none; }
+.s-warm { stroke: var(--oranje); stroke-width: 2.4; fill: none; }
+.s-voed { stroke: var(--paars); stroke-width: 2.4; fill: none; }
+.s-app { fill: var(--paneel); stroke: var(--as); stroke-width: 1.5; }
+.t-damp { fill: var(--rood); font-size: 13px; } .t-vl { fill: var(--blauw); font-size: 13px; }
+.t-warm { fill: var(--oranje); font-size: 13px; font-weight: 600; } .t-voed { fill: var(--paars); font-size: 13px; }
+.t-gew { fill: var(--tekst); font-size: 13px; } .t-zacht { fill: var(--zacht); font-size: 11.5px; }
+.t-sectie { fill: var(--fijn); font-size: 11px; letter-spacing: .04em; }
+.m-rood { fill: var(--rood); } .m-blauw { fill: var(--blauw); } .m-oranje { fill: var(--oranje); } .m-paars { fill: var(--paars); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Destillatie-demonstrator</h1>
+    <div class="sub">Binaire destillatie volgens McCabe-Thiele · Scheidingstechnieken</div>
+  </div>
+  <div class="acties">
+    <label class="klein" for="preset">Laad:</label>
+    <select id="preset"></select>
+    <button id="refKnop" title="Zet de huidige oplossing vast als grijze referentie om het effect van een wijziging te zien">Referentie vastzetten</button>
+    <button id="linkKnop" title="Kopieer een link die deze instellingen bewaart">Link kopiëren</button>
+  </div>
+</header>
+<main>
+  <section class="paneel" id="invoer" aria-label="Invoer"></section>
+  <section class="paneel" id="kolomPaneel" aria-label="Kolomschema">
+    <h2>Kolom</h2>
+    <svg id="kolom" viewBox="0 0 350 606" role="img" aria-label="Schema van de destillatiekolom"></svg>
+  </section>
+  <section class="paneel" id="mtPaneel" aria-label="McCabe-Thiele-diagram">
+    <h2>McCabe-Thiele-diagram</h2>
+    <div class="toolbar">
+      <div class="groep">
+        <button data-zoom="vol" class="aan">Volledig</button>
+        <button data-zoom="top">Zoom top</button>
+        <button data-zoom="bodem">Zoom bodem</button>
+      </div>
+      <label><input type="checkbox" id="tQ" checked> q-lijn</label>
+      <label><input type="checkbox" id="tRmin" checked> R<sub>D,min</sub></label>
+      <label><input type="checkbox" id="tTot"> totale reflux (N<sub>min</sub>)</label>
+      <label><input type="checkbox" id="tNr" checked> nummers</label>
+    </div>
+    <svg id="mt" viewBox="0 0 640 600" role="img" aria-label="McCabe-Thiele-diagram"></svg>
+    <div id="leesuit">Sleep een rechthoek om in te zoomen; dubbelklik om terug te gaan.</div>
+    <div class="legenda" id="legenda"></div>
+  </section>
+  <section class="paneel" id="extraPaneel" aria-label="Extra diagrammen">
+    <div>
+      <h2>T-x-y-diagram en plaattemperaturen</h2>
+      <svg id="txy" viewBox="0 0 520 400" role="img" aria-label="T-x-y-diagram"></svg>
+      <div class="uitleg" id="txyUitleg"></div>
+    </div>
+    <div>
+      <h2>Platen en energie versus reflux</h2>
+      <svg id="rfx" viewBox="0 0 520 400" role="img" aria-label="Aantal platen en reboilervermogen als functie van de refluxverhouding"></svg>
+      <div class="uitleg" id="rfxUitleg"></div>
+    </div>
+  </section>
+  <section class="paneel" id="tabelPaneel" aria-label="Resultaten">
+    <h2>Resultaten</h2>
+    <div class="meldingen" id="meldingen"></div>
+    <div class="tabellen" id="tabellen"></div>
+    <details id="platenDetails"><summary>Plaat per plaat (samenstellingen)</summary><div class="platentabel" id="platen"></div></details>
+    <details class="probeer"><summary>Probeer dit (inzicht)</summary>
+      <ol>
+        <li>Verlaag R<sub>D</sub> stap voor stap tot vlak boven R<sub>D,min</sub>. Hoe evolueert het aantal platen, en waar ontstaat de pinch? Wat gebeurt er met Q̇<sub>R</sub>?</li>
+        <li>Zet een referentie vast en verander enkel q van 1 naar 0 (verzadigde damp). Welke sectie krijgt meer platen? Waarom stijgt R<sub>D,min</sub>?</li>
+        <li>Kies een vaste voedingsplaat die te hoog of te laag ligt en vergelijk met de optimale voedingsplaat.</li>
+        <li>Verlaag α van 4 naar 1.5 bij gelijke R<sub>D</sub>/R<sub>D,min</sub>. Hoe snel stijgen N<sub>min</sub> en het aantal platen?</li>
+        <li>Kies ethanol – water en verhoog x<sub>D</sub> richting 0.89. Wat gebeurt er boven de azeotrope samenstelling? Bekijk ook de raaklijn bij minimale reflux.</li>
+        <li>Specificeer de reboilerverhouding V<sub>B</sub> in plaats van R<sub>D</sub>: beide liggen vast zodra de voeding en de producten gekend zijn.</li>
+        <li>Verlaag de Murphree-efficiëntie: de pseudo-evenwichtslijn schuift naar de werklijnen toe.</li>
+      </ol>
+    </details>
+    <div class="voet">Veronderstellingen: constante molaire overloop, totale condensor, reboiler = ideale evenwichtstrap, Murphree-dampefficiëntie op de platen, druk constant. Platen genummerd van boven naar beneden; de voedingsplaat is de trap die over het snijpunt van de werklijnen stapt. Warmtestromen met de verdampingswarmte van de stroom die van fase verandert (condensor: x<sub>D</sub>, reboiler: y<sub>b</sub> in evenwicht met x<sub>B</sub>).</div>
+  </section>
+</main>
+<script>
+/*CORE*/
+</script>
+<script>
+/*EXTRA*/
+</script>
+<script>
+/*UI*/
+</script>
+</body>
+</html>

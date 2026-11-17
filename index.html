@@ -1,0 +1,1507 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Destillatie-demonstrator</title>
+<meta name="description" content="Interactieve McCabe-Thiele-demonstrator voor binaire destillatie (Scheidingstechnieken, KU Leuven).">
+<style>
+:root {
+  --bg: #f4f5f7; --paneel: #ffffff; --rand: #d9dce1; --tekst: #24272c; --zacht: #5f6670; --fijn: #8b929c;
+  --rood: #c0392b; --blauw: #1f5fa8; --oranje: #e67e22; --paars: #8e44ad; --groen: #2e7d4f;
+  --grid: #e6e8eb; --grid2: #f2f3f5; --as: #555b63; --diag: #9aa0a8;
+  --fout-bg: #fdecea; --fout-rand: #e8a29b; --waarsch-bg: #fff4e5; --waarsch-rand: #f0c27b;
+  --info-bg: #eaf2fb; --info-rand: #a9c6e8; --ok-bg: #e9f5ee; --ok-rand: #9fd0b2;
+  --veld: #f7f8fa; --accent: #1f5fa8; --ref: #a7adb5; --kolom: #fbfcfd;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --paneel: #1e2125; --rand: #343840; --tekst: #e6e8eb; --zacht: #a9b0b9; --fijn: #7d848e;
+    --rood: #ef6b5b; --blauw: #6aa7ec; --oranje: #f39c4a; --paars: #c08ad8; --groen: #5cbf86;
+    --grid: #2c3036; --grid2: #24272c; --as: #9aa1aa; --diag: #6b727b;
+    --fout-bg: #3a2220; --fout-rand: #7d3b33; --waarsch-bg: #3a2f1c; --waarsch-rand: #7d6332;
+    --info-bg: #1c2a3a; --info-rand: #345a85; --ok-bg: #1b3326; --ok-rand: #2f6b49;
+    --veld: #262a2f; --accent: #6aa7ec; --ref: #5d646d; --kolom: #23272c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --paneel: #1e2125; --rand: #343840; --tekst: #e6e8eb; --zacht: #a9b0b9; --fijn: #7d848e;
+  --rood: #ef6b5b; --blauw: #6aa7ec; --oranje: #f39c4a; --paars: #c08ad8; --groen: #5cbf86;
+  --grid: #2c3036; --grid2: #24272c; --as: #9aa1aa; --diag: #6b727b;
+  --fout-bg: #3a2220; --fout-rand: #7d3b33; --waarsch-bg: #3a2f1c; --waarsch-rand: #7d6332;
+  --info-bg: #1c2a3a; --info-rand: #345a85; --ok-bg: #1b3326; --ok-rand: #2f6b49;
+  --veld: #262a2f; --accent: #6aa7ec; --ref: #5d646d; --kolom: #23272c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--tekst); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rand); background: var(--paneel); }
+header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+header .sub { color: var(--zacht); font-size: 12.5px; }
+header .acties { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+select, input[type=number], button { font: inherit; color: var(--tekst); }
+select { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+button { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.aan { background: var(--accent); color: #fff; border-color: var(--accent); }
+main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns: 300px minmax(260px, 330px) minmax(380px, 1fr); grid-template-areas: "in kolom mt" "in extra extra" "in tabel tabel"; align-items: start; }
+.paneel { background: var(--paneel); border: 1px solid var(--rand); border-radius: 10px; padding: 12px; min-width: 0; }
+#invoer { grid-area: in; }
+#kolomPaneel { grid-area: kolom; }
+#mtPaneel { grid-area: mt; }
+#tabelPaneel { grid-area: tabel; }
+#extraPaneel { grid-area: extra; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 20px; }
+#extraPaneel > div { min-width: 0; }
+#rfx { cursor: pointer; }
+@media (max-width: 1150px) {
+  main { grid-template-columns: 300px 1fr; grid-template-areas: "in mt" "in kolom" "extra extra" "tabel tabel"; }
+}
+@media (max-width: 760px) {
+  main { grid-template-columns: 1fr; grid-template-areas: "mt" "in" "kolom" "extra" "tabel"; padding: 10px 10px 20px; }
+  header { padding: 10px; }
+}
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--zacht); margin: 0 0 8px; font-weight: 650; }
+fieldset { border: 0; border-top: 1px solid var(--rand); margin: 10px 0 0; padding: 8px 0 0; }
+fieldset:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+legend { font-weight: 650; font-size: 13px; padding: 0; margin-bottom: 4px; }
+.rij { display: grid; grid-template-columns: 92px 1fr 74px; gap: 6px; align-items: center; margin: 5px 0; }
+.rij label { font-size: 13px; white-space: nowrap; }
+.rij input[type=range] { width: 100%; accent-color: var(--accent); }
+.rij input[type=number] { width: 74px; background: var(--veld); border: 1px solid var(--rand); border-radius: 5px; padding: 2px 4px; text-align: right; }
+.rij input[type=number]:disabled { color: var(--zacht); }
+.rij.radio label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.rij.uit { opacity: .78; }
+.rij.uit input[type=range] { opacity: .45; }
+.keuze { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; font-size: 13px; }
+.keuze label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.uitleg { font-size: 12px; color: var(--zacht); margin: 4px 0; }
+.klein { font-size: 12px; color: var(--zacht); }
+sub, sup { font-size: 72%; line-height: 0; }
+.ov { text-decoration: overline; }
+.meldingen > div { border-radius: 7px; padding: 6px 9px; margin: 6px 0; font-size: 13px; border: 1px solid; }
+.m-fout { background: var(--fout-bg); border-color: var(--fout-rand) !important; }
+.m-waarsch { background: var(--waarsch-bg); border-color: var(--waarsch-rand) !important; }
+.m-info { background: var(--info-bg); border-color: var(--info-rand) !important; }
+.m-ok { background: var(--ok-bg); border-color: var(--ok-rand) !important; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 6px; font-size: 13px; }
+.toolbar .groep { display: flex; gap: 4px; flex-wrap: wrap; }
+.toolbar label { display: flex; gap: 3px; align-items: center; cursor: pointer; }
+svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+#mt { cursor: crosshair; }
+#leesuit { font-variant-numeric: tabular-nums; color: var(--zacht); font-size: 12px; min-height: 18px; }
+.legenda { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--zacht); margin-top: 4px; }
+.legenda span::before { content: ""; display: inline-block; width: 18px; height: 0; border-top: 2.5px solid currentColor; vertical-align: middle; margin-right: 5px; }
+.legenda .l-ev { color: var(--blauw); } .legenda .l-wl { color: var(--rood); }
+.legenda .l-q::before { border-top: 2px dashed var(--tekst); } .legenda .l-q { color: var(--zacht); }
+.legenda .l-ps::before { border-top: 2px dashed var(--blauw); }
+.legenda .l-ref::before { border-top: 2px dashed var(--ref); }
+.tabellen { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 18px; }
+.tabellen.metref { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 650; color: var(--zacht); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; padding: 4px 4px; border-bottom: 1px solid var(--rand); }
+td { padding: 3px 4px; border-bottom: 1px solid var(--grid); }
+td.w { text-align: right; white-space: nowrap; }
+td.r { text-align: right; color: var(--fijn); white-space: nowrap; }
+tr.nadruk td { font-weight: 650; }
+details { margin-top: 10px; }
+summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.platentabel { max-height: 320px; overflow: auto; margin-top: 6px; }
+.platentabel table td, .platentabel table th { text-align: right; }
+.probeer ol { margin: 6px 0 0 18px; padding: 0; font-size: 13px; }
+.probeer li { margin: 3px 0; }
+.voet { font-size: 11.5px; color: var(--fijn); margin-top: 10px; }
+/* SVG-stijlen */
+.s-grid { stroke: var(--grid); stroke-width: 1; }
+.s-grid2 { stroke: var(--grid2); stroke-width: .7; }
+.s-as { stroke: var(--as); stroke-width: 1.2; fill: none; }
+.s-tick { fill: var(--zacht); font-size: 11px; }
+.s-astitel { fill: var(--tekst); font-size: 12.5px; }
+.s-diag { stroke: var(--diag); stroke-width: 1.2; stroke-dasharray: 5 4; fill: none; }
+.s-ev { stroke: var(--blauw); stroke-width: 2.6; fill: none; }
+.s-ps { stroke: var(--blauw); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; opacity: .85; }
+.s-wl { stroke: var(--rood); stroke-width: 2.2; fill: none; }
+.s-wlmin { stroke: var(--zacht); stroke-width: 1.3; fill: none; stroke-dasharray: 2 3; }
+.s-q { stroke: var(--tekst); stroke-width: 1.5; fill: none; stroke-dasharray: 7 3 2 3; }
+.s-trap { stroke: var(--tekst); stroke-width: 1.15; fill: none; }
+.s-trapfeed { stroke: var(--paars); stroke-width: 2.2; fill: none; }
+.s-totaal { stroke: var(--groen); stroke-width: 1; fill: none; opacity: .8; }
+.s-ref { stroke: var(--ref); stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; }
+.s-reftrap { stroke: var(--ref); stroke-width: 1; fill: none; }
+.s-nr, .s-nrfeed, .s-labr, .s-labz, .s-lab { paint-order: stroke; stroke: var(--paneel); stroke-width: 3px; stroke-linejoin: round; }
+.s-nr { fill: var(--tekst); font-size: 10.5px; }
+.s-nrfeed { fill: var(--paars); font-size: 10.5px; font-weight: 700; }
+.s-punt { fill: var(--rood); }
+.s-lab { fill: var(--tekst); font-size: 11.5px; }
+.s-labr { fill: var(--rood); font-size: 11.5px; }
+.s-labz { fill: var(--zacht); font-size: 11px; }
+.s-pinch { fill: var(--paneel); stroke: var(--tekst); stroke-width: 1.4; }
+.s-zoom { fill: var(--accent); fill-opacity: .08; stroke: var(--accent); stroke-dasharray: 4 3; }
+.s-kolom { fill: var(--kolom); stroke: var(--as); stroke-width: 1.6; }
+.s-plaat { stroke: var(--zacht); stroke-width: 1.1; }
+.s-plaatfeed { stroke: var(--paars); stroke-width: 2.2; }
+.s-damp { stroke: var(--rood); stroke-width: 2; fill: none; }
+.s-vl { stroke: var(--blauw); stroke-width: 2; fill: none; }
+.s-warm { stroke: var(--oranje); stroke-width: 2.4; fill: none; }
+.s-voed { stroke: var(--paars); stroke-width: 2.4; fill: none; }
+.s-app { fill: var(--paneel); stroke: var(--as); stroke-width: 1.5; }
+.t-damp { fill: var(--rood); font-size: 13px; } .t-vl { fill: var(--blauw); font-size: 13px; }
+.t-warm { fill: var(--oranje); font-size: 13px; font-weight: 600; } .t-voed { fill: var(--paars); font-size: 13px; }
+.t-gew { fill: var(--tekst); font-size: 13px; } .t-zacht { fill: var(--zacht); font-size: 11.5px; }
+.t-sectie { fill: var(--fijn); font-size: 11px; letter-spacing: .04em; }
+.m-rood { fill: var(--rood); } .m-blauw { fill: var(--blauw); } .m-oranje { fill: var(--oranje); } .m-paars { fill: var(--paars); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Destillatie-demonstrator</h1>
+    <div class="sub">Binaire destillatie volgens McCabe-Thiele · Scheidingstechnieken</div>
+  </div>
+  <div class="acties">
+    <label class="klein" for="preset">Laad:</label>
+    <select id="preset"></select>
+    <button id="refKnop" title="Zet de huidige oplossing vast als grijze referentie om het effect van een wijziging te zien">Referentie vastzetten</button>
+    <button id="linkKnop" title="Kopieer een link die deze instellingen bewaart">Link kopiëren</button>
+  </div>
+</header>
+<main>
+  <section class="paneel" id="invoer" aria-label="Invoer"></section>
+  <section class="paneel" id="kolomPaneel" aria-label="Kolomschema">
+    <h2>Kolom</h2>
+    <svg id="kolom" viewBox="0 0 350 606" role="img" aria-label="Schema van de destillatiekolom"></svg>
+  </section>
+  <section class="paneel" id="mtPaneel" aria-label="McCabe-Thiele-diagram">
+    <h2>McCabe-Thiele-diagram</h2>
+    <div class="toolbar">
+      <div class="groep">
+        <button data-zoom="vol" class="aan">Volledig</button>
+        <button data-zoom="top">Zoom top</button>
+        <button data-zoom="bodem">Zoom bodem</button>
+      </div>
+      <label><input type="checkbox" id="tQ" checked> q-lijn</label>
+      <label><input type="checkbox" id="tRmin" checked> R<sub>D,min</sub></label>
+      <label><input type="checkbox" id="tTot"> totale reflux (N<sub>min</sub>)</label>
+      <label><input type="checkbox" id="tNr" checked> nummers</label>
+    </div>
+    <svg id="mt" viewBox="0 0 640 600" role="img" aria-label="McCabe-Thiele-diagram"></svg>
+    <div id="leesuit">Sleep een rechthoek om in te zoomen; dubbelklik om terug te gaan.</div>
+    <div class="legenda" id="legenda"></div>
+  </section>
+  <section class="paneel" id="extraPaneel" aria-label="Extra diagrammen">
+    <div>
+      <h2>T-x-y-diagram en plaattemperaturen</h2>
+      <svg id="txy" viewBox="0 0 520 400" role="img" aria-label="T-x-y-diagram"></svg>
+      <div class="uitleg" id="txyUitleg"></div>
+    </div>
+    <div>
+      <h2>Platen en energie versus reflux</h2>
+      <svg id="rfx" viewBox="0 0 520 400" role="img" aria-label="Aantal platen en reboilervermogen als functie van de refluxverhouding"></svg>
+      <div class="uitleg" id="rfxUitleg"></div>
+    </div>
+  </section>
+  <section class="paneel" id="tabelPaneel" aria-label="Resultaten">
+    <h2>Resultaten</h2>
+    <div class="meldingen" id="meldingen"></div>
+    <div class="tabellen" id="tabellen"></div>
+    <details id="platenDetails"><summary>Plaat per plaat (samenstellingen)</summary><div class="platentabel" id="platen"></div></details>
+    <details class="probeer"><summary>Probeer dit (inzicht)</summary>
+      <ol>
+        <li>Verlaag R<sub>D</sub> stap voor stap tot vlak boven R<sub>D,min</sub>. Hoe evolueert het aantal platen, en waar ontstaat de pinch? Wat gebeurt er met Q̇<sub>R</sub>?</li>
+        <li>Zet een referentie vast en verander enkel q van 1 naar 0 (verzadigde damp). Welke sectie krijgt meer platen? Waarom stijgt R<sub>D,min</sub>?</li>
+        <li>Kies een vaste voedingsplaat die te hoog of te laag ligt en vergelijk met de optimale voedingsplaat.</li>
+        <li>Verlaag α van 4 naar 1.5 bij gelijke R<sub>D</sub>/R<sub>D,min</sub>. Hoe snel stijgen N<sub>min</sub> en het aantal platen?</li>
+        <li>Kies ethanol – water en verhoog x<sub>D</sub> richting 0.89. Wat gebeurt er boven de azeotrope samenstelling? Bekijk ook de raaklijn bij minimale reflux.</li>
+        <li>Specificeer de reboilerverhouding V<sub>B</sub> in plaats van R<sub>D</sub>: beide liggen vast zodra de voeding en de producten gekend zijn.</li>
+        <li>Verlaag de Murphree-efficiëntie: de pseudo-evenwichtslijn schuift naar de werklijnen toe.</li>
+      </ol>
+    </details>
+    <div class="voet">Veronderstellingen: constante molaire overloop, totale condensor, reboiler = ideale evenwichtstrap, Murphree-dampefficiëntie op de platen, druk constant. Platen genummerd van boven naar beneden; de voedingsplaat is de trap die over het snijpunt van de werklijnen stapt. Warmtestromen met de verdampingswarmte van de stroom die van fase verandert (condensor: x<sub>D</sub>, reboiler: y<sub>b</sub> in evenwicht met x<sub>B</sub>).</div>
+  </section>
+</main>
+<script>
+// =====================================================================
+// Rekenkern destillatie-demonstrator (McCabe-Thiele, binair, constante molaire overloop)
+// Conventies cursus Scheidingstechnologie (KU Leuven): platen van boven naar beneden,
+// totale condensor, reboiler = ideale trap, Murphree-dampefficientie op de platen.
+// =====================================================================
+"use strict";
+
+// ---------------------------------------------------------------- hulpfuncties
+function bisect(f, a, b, n = 80) {
+  let fa = f(a);
+  for (let i = 0; i < n; i++) {
+    const c = 0.5 * (a + b), fc = f(c);
+    if ((fa <= 0 && fc <= 0) || (fa > 0 && fc > 0)) { a = c; fa = fc; } else b = c;
+  }
+  return 0.5 * (a + b);
+}
+
+// PCHIP zoals scipy.interpolate.PchipInterpolator
+function pchip(xs, ys) {
+  const n = xs.length, h = [], m = [], d = new Array(n).fill(0);
+  for (let k = 0; k < n - 1; k++) { h.push(xs[k + 1] - xs[k]); m.push((ys[k + 1] - ys[k]) / h[k]); }
+  for (let k = 1; k < n - 1; k++) {
+    if (m[k - 1] * m[k] <= 0) d[k] = 0;
+    else {
+      const w1 = 2 * h[k] + h[k - 1], w2 = h[k] + 2 * h[k - 1];
+      d[k] = (w1 + w2) / (w1 / m[k - 1] + w2 / m[k]);
+    }
+  }
+  const edge = (h0, h1, m0, m1) => {
+    let dd = ((2 * h0 + h1) * m0 - h0 * m1) / (h0 + h1);
+    if (Math.sign(dd) !== Math.sign(m0)) dd = 0;
+    else if (Math.sign(m0) !== Math.sign(m1) && Math.abs(dd) > 3 * Math.abs(m0)) dd = 3 * m0;
+    return dd;
+  };
+  if (n > 2) {
+    d[0] = edge(h[0], h[1], m[0], m[1]);
+    d[n - 1] = edge(h[n - 2], h[n - 3], m[n - 2], m[n - 3]);
+  } else { d[0] = d[1] = m[0]; }
+  return function (x) {
+    if (x <= xs[0]) return ys[0] + d[0] * (x - xs[0]);
+    if (x >= xs[n - 1]) return ys[n - 1] + d[n - 1] * (x - xs[n - 1]);
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] <= x) lo = mid; else hi = mid; }
+    const hh = h[lo], t = (x - xs[lo]) / hh, t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * ys[lo] + (t3 - 2 * t2 + t) * hh * d[lo] +
+      (-2 * t3 + 3 * t2) * ys[lo + 1] + (t3 - t2) * hh * d[lo + 1];
+  };
+}
+
+// ---------------------------------------------------------------- Antoine
+// log10(p/mmHg) = A - B/(T/°C + C)
+const ANTOINE = {
+  aceton:   { A: 7.11714, B: 1210.595, C: 229.664 },
+  methanol: { A: 8.08097, B: 1582.271, C: 239.726 },
+  ethanol:  { A: 8.20417, B: 1642.89,  C: 230.300 },
+  water:    { A: 8.07131, B: 1730.63,  C: 233.426 },
+  benzeen:  { A: 6.90565, B: 1211.033, C: 220.790 },
+  ethanol51:{ A: 8.04494, B: 1554.3,   C: 222.65 },   // zoals oefening 5.1
+};
+const mmHg = (c) => (T) => Math.pow(10, c.A - c.B / (T + c.C)) * 101.325 / 760; // kPa
+// benzeen-tolueen zoals oefening 5.2-5.4: ln(p/kPa)
+const pBenzeen = (t) => Math.exp(13.7819 - 2726.81 / (t + 217.572));
+const pTolueen = (t) => Math.exp(13.9320 - 3056.96 / (t + 217.625));
+
+// ---------------------------------------------------------------- UNIFAC (origineel, VLE)
+const UG = {  // R, Q, hoofdgroep
+  CH3: [0.9011, 0.848, 1], CH2: [0.6744, 0.540, 1], ACH: [0.5313, 0.400, 3],
+  OH: [1.0000, 1.200, 5], CH3OH: [1.4311, 1.432, 6], H2O: [0.9200, 1.400, 7], CH3CO: [1.6724, 1.488, 9],
+};
+const UA = {
+  "1,3": 61.13, "3,1": -11.12, "1,5": 986.5, "5,1": 156.4, "1,6": 697.2, "6,1": 16.51,
+  "1,7": 1318, "7,1": 300.0, "1,9": 476.4, "9,1": 26.76, "3,5": 636.1, "5,3": 89.60,
+  "5,7": 353.5, "7,5": -229.1, "6,7": -181.0, "7,6": 289.6, "6,9": 23.39, "9,6": 108.7,
+};
+function unifacModel(mols) {
+  const G = [...new Set(mols.flatMap((m) => Object.keys(m)))];
+  const r = mols.map((m) => Object.entries(m).reduce((s, [g, n]) => s + n * UG[g][0], 0));
+  const q = mols.map((m) => Object.entries(m).reduce((s, [g, n]) => s + n * UG[g][1], 0));
+  const psi = (gm, gn, T) => {
+    const a = UG[gm][2], b = UG[gn][2];
+    return a === b ? 1 : Math.exp(-UA[a + "," + b] / T);
+  };
+  function lnGamR(X, T) {
+    let th = G.map((g, i) => UG[g][1] * X[i]); const s = th.reduce((a, b) => a + b, 0); th = th.map((v) => v / s);
+    const P = G.map((gm) => G.map((gn) => psi(gm, gn, T)));
+    const den = G.map((_, mI) => G.reduce((acc, _2, nI) => acc + th[nI] * P[nI][mI], 0));
+    return G.map((gk, k) => {
+      const s1 = den[k];
+      let s2 = 0; for (let mI = 0; mI < G.length; mI++) s2 += th[mI] * P[k][mI] / den[mI];
+      return UG[gk][1] * (1 - Math.log(s1) - s2);
+    });
+  }
+  const pure = mols.map((m) => {
+    const X = G.map((g) => m[g] || 0); const s = X.reduce((a, b) => a + b, 0);
+    return X.map((v) => v / s);
+  });
+  return function gamma(x1, Tc) {
+    const T = Tc + 273.15, x = [Math.max(x1, 1e-12), Math.max(1 - x1, 1e-12)];
+    const sr = x[0] * r[0] + x[1] * r[1], sq = x[0] * q[0] + x[1] * q[1];
+    const l = [0, 1].map((i) => 5 * (r[i] - q[i]) - (r[i] - 1));
+    const sxl = x[0] * l[0] + x[1] * l[1];
+    const lnC = [0, 1].map((i) => {
+      const phi = r[i] / sr, th = q[i] / sq; // phi_i/x_i , theta_i/x_i
+      return Math.log(phi) + 5 * q[i] * Math.log(th / phi) + l[i] - phi * sxl;
+    });
+    const Xg = G.map((g) => mols.reduce((s, m, j) => s + (m[g] || 0) * x[j], 0));
+    const sX = Xg.reduce((a, b) => a + b, 0);
+    const lr = lnGamR(Xg.map((v) => v / sX), T);
+    return [0, 1].map((i) => {
+      const lp = lnGamR(pure[i], T);
+      let res = 0; G.forEach((g, k) => { res += (mols[i][g] || 0) * (lr[k] - lp[k]); });
+      return Math.exp(lnC[i] + res);
+    });
+  };
+}
+
+function vanLaar(A12, A21) {
+  return function (x1) {
+    if (A12 === 0 && A21 === 0) return [1, 1];
+    const x2 = 1 - x1, d = A12 * x1 + A21 * x2;
+    if (Math.abs(d) < 1e-14) return [1, 1];
+    return [Math.exp(A12 * Math.pow(A21 * x2 / d, 2)), Math.exp(A21 * Math.pow(A12 * x1 / d, 2))];
+  };
+}
+
+// ---------------------------------------------------------------- systemen
+// Elk systeem: component 1 = lichtste component (x, y verwijzen ernaar).
+const SYSTEMEN = {
+  ideaal: {
+    naam: "Ideaal systeem (constante α)", c1: "A (licht)", c2: "B (zwaar)", soort: "alpha",
+    uitleg: "y = αx / (1 + (α − 1)x). Geen temperaturen: kies q rechtstreeks of via de dampfractie.",
+    lambda: [30, 30],
+  },
+  vanlaar: {
+    naam: "Eigen niet-ideaal systeem (α₀ + Van Laar)", c1: "A (licht)", c2: "B (zwaar)", soort: "vanlaar",
+    uitleg: "α = α₀·γ₁/γ₂ met Van Laar-activiteitscoëfficiënten. Met A₁₂, A₂₁ > 0 (positieve afwijking) ontstaat bij voldoende grote waarden een minimumazeotroop.",
+    lambda: [30, 30],
+  },
+  bt: {
+    naam: "Benzeen – tolueen (Raoult + Antoine)", c1: "benzeen", c2: "tolueen", soort: "model",
+    p: [pBenzeen, pTolueen], gam: () => [1, 1], Tbrak: [60, 130], lambda: [30.72, 33.18],
+    uitleg: "Ideaal mengsel: wet van Raoult met Antoine-constanten zoals in oefening 5.2–5.4.",
+  },
+  ew: {
+    naam: "Ethanol – water (UNIFAC + Antoine)", c1: "ethanol", c2: "water", soort: "model",
+    p: [mmHg(ANTOINE.ethanol), mmHg(ANTOINE.water)],
+    gam: unifacModel([{ CH3: 1, CH2: 1, OH: 1 }, { H2O: 1 }]), Tbrak: [50, 120], lambda: [38.56, 40.65],
+    uitleg: "Niet-ideaal: activiteitscoëfficiënten uit UNIFAC (origineel). Minimumazeotroop bij hoge ethanolfractie.",
+  },
+  ewdata: {
+    naam: "Ethanol – water (meetgegevens Perry, oef. 5.5)", c1: "ethanol", c2: "water", soort: "data",
+    xd: [0, 0.019, 0.072, 0.124, 0.166, 0.234, 0.327, 0.397, 0.508, 0.573, 0.676, 0.747, 0.894, 1],
+    yd: [0, 0.170, 0.389, 0.470, 0.509, 0.545, 0.583, 0.612, 0.656, 0.684, 0.739, 0.782, 0.894, 1],
+    tModel: "ew", lambda: [38.56, 40.65], xaz: 0.894,
+    uitleg: "Evenwichtslijn door de meetpunten uit oefening 5.5 (PCHIP-interpolatie); azeotroop bij x = 0.894. Temperaturen uit het UNIFAC-model.",
+  },
+  mw: {
+    naam: "Methanol – water (UNIFAC + Antoine)", c1: "methanol", c2: "water", soort: "model",
+    p: [mmHg(ANTOINE.methanol), mmHg(ANTOINE.water)],
+    gam: unifacModel([{ CH3OH: 1 }, { H2O: 1 }]), Tbrak: [40, 120], lambda: [35.21, 40.65],
+    uitleg: "Niet-ideaal (UNIFAC), maar zonder azeotroop.",
+  },
+  mwdata: {
+    naam: "Methanol – water (meetgegevens, oef. 5.6)", c1: "methanol", c2: "water", soort: "data",
+    xd: [0.02, 0.04, 0.06, 0.08, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95],
+    yd: [0.134, 0.230, 0.304, 0.365, 0.417, 0.579, 0.669, 0.729, 0.780, 0.825, 0.871, 0.915, 0.959, 0.979],
+    aL: 7.58, aH: 2.45, tModel: "mw", lambda: [35.21, 40.65],
+    uitleg: "Tabel uit oefening 5.6 (PCHIP); voor x < 0.02 constante α = 7.58, voor x > 0.95 α = 2.45, zoals in de uitwerking.",
+  },
+  am: {
+    naam: "Aceton – methanol (UNIFAC + Antoine, azeotroop)", c1: "aceton", c2: "methanol", soort: "model",
+    p: [mmHg(ANTOINE.aceton), mmHg(ANTOINE.methanol)],
+    gam: unifacModel([{ CH3: 1, CH3CO: 1 }, { CH3OH: 1 }]), Tbrak: [30, 100], lambda: [29.10, 35.21],
+    uitleg: "Niet-ideaal (UNIFAC) met minimumazeotroop (x ≈ 0.78 bij 1 atm), zoals oefening 5.7 en 5.12.",
+  },
+  be: {
+    naam: "Benzeen – ethanol (Van Laar, azeotroop; oef. 5.1)", c1: "benzeen", c2: "ethanol", soort: "model",
+    p: [mmHg(ANTOINE.benzeen), mmHg(ANTOINE.ethanol51)], Tbrak: [30, 110], lambda: [30.72, 38.56],
+    uitleg: "Van Laar-constanten gefit op het azeotroop (67.9 °C, x = 0.552), zoals oefening 5.1.",
+  },
+};
+// Van Laar-constanten benzeen-ethanol uit het azeotroop bij 1 atm (zoals Oef5.1_Txy_figuren.py)
+(function () {
+  const s = SYSTEMEN.be, P = 101.325, xa = 0.552, Ta = 67.9;
+  const l1 = Math.log(P / s.p[0](Ta)), l2 = Math.log(P / s.p[1](Ta));
+  const A12 = l1 * Math.pow(1 + (1 - xa) * l2 / (xa * l1), 2);
+  const A21 = l2 * Math.pow(1 + xa * l1 / ((1 - xa) * l2), 2);
+  const vl = vanLaar(A12, A21); s.gam = (x) => vl(x); s.A = [A12, A21];
+})();
+
+// raster voor tabellering: fijn bij de uiteinden (strenge zuiverheden)
+function raster() {
+  const xs = [0];
+  for (let e = -8; e < -2; e += 0.25) xs.push(Math.pow(10, e));
+  for (let v = 0.01; v < 0.99 - 1e-9; v += 0.005) xs.push(+v.toFixed(4));
+  for (let e = -2; e >= -8; e -= 0.25) xs.push(1 - Math.pow(10, e));
+  xs.push(1);
+  return xs;
+}
+
+// Bouw een evenwichtsobject {y(x), xVan(y), T(x) of null, Tdauw(y), xaz, ...}
+const _cache = {};
+function maakEvenwicht(key, par) {
+  const s = SYSTEMEN[key];
+  const P = par.P || 101.325;
+  if (s.soort === "alpha") {
+    const a = par.alpha;
+    return { key, s, ideaalAlpha: a, y: (x) => a * x / (1 + (a - 1) * x), xVan: (y) => y / (a - (a - 1) * y), T: null, Tdauw: null, xaz: null };
+  }
+  if (s.soort === "vanlaar") {
+    const a0 = par.alpha, gl = vanLaar(par.A12, par.A21);
+    const yf = (x) => { const g = gl(x); const a = a0 * g[0] / g[1]; return a * x / (1 + (a - 1) * x); };
+    return tabelleer(key, s, raster().map((x) => [x, x <= 0 ? 0 : x >= 1 ? 1 : yf(x), null]), false);
+  }
+  if (s.soort === "data") {
+    let xd = s.xd.slice(), yd = s.yd.slice();
+    const f = pchip(xd, yd);
+    let yfun;
+    if (s.aL) {
+      const aL = s.aL, aH = s.aH, x0 = xd[0], x1 = xd[xd.length - 1];
+      yfun = (x) => x < x0 ? aL * x / (1 + (aL - 1) * x) : x > x1 ? aH * x / (1 + (aH - 1) * x) : f(x);
+    } else yfun = (x) => f(Math.min(1, Math.max(0, x)));
+    const tm = maakEvenwicht(s.tModel, par);
+    const ev = { key, s, y: yfun, T: tm.T, Tdauw: tm.Tdauw, tModel: tm };
+    ev.xVan = (y) => bisect((x) => ev.y(x) - y, 0, 1, 70);
+    ev.xaz = s.xaz !== undefined ? s.xaz : zoekAzeotroop(ev.y);
+    return ev;
+  }
+  // model: bubble-point per x
+  const ck = key + "@" + P.toFixed(3);
+  if (_cache[ck]) return _cache[ck];
+  const rows = raster().map((x) => {
+    const f = (T) => { const g = s.gam(x, T); return x * g[0] * s.p[0](T) + (1 - x) * g[1] * s.p[1](T) - P; };
+    let [a, b] = s.Tbrak; a -= 60; b += 80;
+    const T = bisect(f, a, b, 60);
+    const g = s.gam(x, T);
+    const y = x * g[0] * s.p[0](T) / P;
+    return [x, Math.min(1, Math.max(0, y)), T];
+  });
+  rows[0][1] = 0; rows[rows.length - 1][1] = 1;
+  const ev = tabelleer(key, s, rows, true);
+  _cache[ck] = ev;
+  return ev;
+}
+
+function tabelleer(key, s, rows, metT) {
+  const xs = rows.map((r) => r[0]), ys = rows.map((r) => r[1]);
+  const yf = pchip(xs, ys);
+  const ev = { key, s, y: (x) => yf(Math.min(1, Math.max(0, x))) };
+  ev.xVan = (y) => bisect((x) => ev.y(x) - y, 0, 1, 70);
+  if (metT) {
+    const Ts = rows.map((r) => r[2]);
+    const tf = pchip(xs, Ts);
+    ev.T = (x) => tf(Math.min(1, Math.max(0, x)));
+    ev.Tdauw = (y) => ev.T(ev.xVan(y));       // dauwpunt van damp y = kookpunt van de vloeistof in evenwicht
+  } else { ev.T = null; ev.Tdauw = null; }
+  ev.xaz = zoekAzeotroop(ev.y);
+  return ev;
+}
+
+function zoekAzeotroop(y) {
+  let prev = null;
+  for (let i = 1; i < 1000; i++) {
+    const x = i / 1000, d = y(x) - x;
+    if (prev !== null && Math.sign(d) !== Math.sign(prev.d) && Math.abs(d) > 0 && Math.abs(prev.d) > 0) {
+      return bisect((t) => y(t) - t, prev.x, x, 50);
+    }
+    prev = { x, d };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------- q-factor uit de thermische toestand
+// Geeft {q, uitleg, Tkook, Tdauw}
+function qUitTemperatuur(ev, zF, TF, cpL, cpV, lam) {
+  if (!ev.T) return null;
+  const Tb = ev.T(zF), Td = ev.Tdauw(zF);
+  let q;
+  if (TF <= Tb) q = 1 + cpL * (Tb - TF) / (lam * 1000);
+  else if (TF >= Td) q = -cpV * (TF - Td) / (lam * 1000);
+  else {
+    // tweefasig: flash bij T_F, vloeistoffractie = (y − z)/(y − x)
+    const x = bisect((t) => ev.T(t) - TF, 0, 1, 60); // kookpunt daalt met x (licht)
+    const y = ev.y(x);
+    q = (y - zF) / (y - x);
+  }
+  return { q, Tb, Td };
+}
+
+// ---------------------------------------------------------------- hoofdberekening
+// inp: F, zF, xD, xB, q, mode ('R' | 'Rfac' | 'VB'), R, Rfac, VB, eta, voeding (0 = optimaal)
+function bereken(ev, inp) {
+  const out = { fouten: [], waarsch: [], info: [] };
+  const { F, zF, xD, xB, q } = inp;
+  const eta = Math.min(1, Math.max(0.05, inp.eta || 1));
+  out.eta = eta; out.q = q;
+  if (!(xB < zF && zF < xD)) { out.fouten.push("De specificaties moeten voldoen aan x<sub>B</sub> &lt; z<sub>F</sub> &lt; x<sub>D</sub>."); return out; }
+  if (!(xD < 1 && xB > 0)) { out.fouten.push("Kies 0 &lt; x<sub>B</sub> en x<sub>D</sub> &lt; 1 (een volledig zuiver product vraagt oneindig veel platen)."); return out; }
+
+  // massabalansen
+  const D = F * (zF - xB) / (xD - xB), B = F - D;
+  Object.assign(out, { D, B });
+
+  // azeotroop / evenwicht onder diagonaal tussen x_B en x_D
+  if (ev.xaz !== null && ev.xaz > xB && ev.xaz < xD) {
+    out.fouten.push(`Er ligt een azeotroop bij x = ${ev.xaz.toFixed(3)} tussen x<sub>B</sub> en x<sub>D</sub>. ` +
+      `Met gewone destillatie kan het topproduct de azeotrope samenstelling niet overschrijden: kies x<sub>D</sub> &lt; ${ev.xaz.toFixed(3)}.`);
+    out.azeoBlok = true;
+  }
+  if (ev.xaz !== null) out.info.push(`Azeotroop bij x = ${ev.xaz.toFixed(3)}${ev.T ? `, T = ${ev.T(ev.xaz).toFixed(1)} °C` : ""}.`);
+
+  // snijpunt q-lijn met evenwichtslijn (pinch bij minimale reflux)
+  const qlijn = (x) => q / (q - 1) * x - zF / (q - 1);
+  let xp;
+  if (Math.abs(q - 1) < 1e-9) xp = zF;
+  else if (Math.abs(q) < 1e-9) xp = ev.xVan(zF);
+  else if (q > 1) xp = bisect((x) => ev.y(x) - qlijn(x), zF, 1, 70);
+  else xp = bisect((x) => ev.y(x) - qlijn(x), 0, zF, 70);
+  const yp = ev.y(xp);
+  out.pinchQ = { x: xp, y: yp };
+
+  if (!out.azeoBlok) {
+    // minimale reflux: rectificatie (incl. raakpunt) en stripping (incl. raakpunt)
+    let LVr = (xD - yp) / (xD - xp), tang = null;
+    const n = 1500;
+    for (let i = 0; i < n; i++) {
+      const x = xp + (xD - xp) * i / n; if (xD - x < 1e-9) break;
+      const v = (xD - ev.y(x)) / (xD - x);
+      if (v > LVr + 1e-9) { LVr = v; tang = { x, y: ev.y(x), sectie: "rectificatie" }; }
+    }
+    let sS = (yp - xB) / (xp - xB), tangS = null;
+    for (let i = 1; i <= n; i++) {
+      const x = xB + (xp - xB) * i / n;
+      const v = (ev.y(x) - xB) / (x - xB);
+      if (v < sS - 1e-9) { sS = v; tangS = { x, y: ev.y(x), sectie: "stripping" }; }
+    }
+    const Rr = LVr / (1 - LVr);
+    const VbS = sS > 1 ? B / (sS - 1) : Infinity;
+    const RsVia = (VbS + (1 - q) * F) / D - 1;
+    let Rmin = Rr, pinch = tang || { x: xp, y: yp, sectie: "q-lijn" };
+    if (tangS && RsVia > Rr + 1e-9) { Rmin = RsVia; pinch = tangS; }
+    out.Rmin = Math.max(0, Rmin); out.pinch = pinch;
+    out.LVmin = out.Rmin / (out.Rmin + 1);
+    out.VBmin = ((out.Rmin + 1) * D - (1 - q) * F) / B;
+  }
+
+  if (out.azeoBlok) return out;
+  // reflux bepalen volgens gekozen specificatie
+  let R;
+  if (inp.mode === "VB") {
+    const Vb = inp.VB * B, V = Vb + (1 - q) * F; R = V / D - 1;
+  } else if (inp.mode === "Rfac") {
+    R = (out.Rmin !== undefined ? out.Rmin : NaN) * inp.Rfac;
+  } else R = inp.R;
+  const L = R * D, V = L + D, Lb = L + q * F, Vb = V - (1 - q) * F;
+  Object.assign(out, { R, L, V, Lb, Vb, VB: Vb / B, LV: L / V, LbVb: Lb / Vb });
+  if (!(R > 0) || V <= 0) { out.fouten.push("De refluxverhouding is negatief of nul: verhoog R<sub>D</sub> of V<sub>B</sub>."); return out; }
+  if (Vb <= 0) { out.fouten.push("V̄ ≤ 0: met deze voeding (q) en reflux komt er geen damp uit de reboiler. Verhoog de reflux of de reboilerverhouding."); return out; }
+
+  // werklijnen
+  const rect = (x) => R / (R + 1) * x + xD / (R + 1);
+  const strip = (x) => Lb / Vb * x - B * xB / Vb;
+  out.rect = rect; out.strip = strip;
+  const xi = Math.abs(Lb / Vb - R / (R + 1)) < 1e-12 ? zF : (xD / (R + 1) + B * xB / Vb) / (Lb / Vb - R / (R + 1));
+  out.xi = xi; out.yi = rect(xi);
+
+  // minimum aantal trappen (totale reflux)
+  if (!out.azeoBlok) {
+    const tr = []; let y = xD;
+    for (let k = 0; k < 400; k++) {
+      const x = ev.xVan(y); tr.push({ x, y });
+      if (x <= xB) break; y = x;
+    }
+    out.totaal = tr;
+    if (tr.length < 400) {
+      const n = tr.length, xprev = n > 1 ? tr[n - 2].x : xD;
+      out.Nmin = n; out.NminFrac = n - 1 + (xprev - xB) / (xprev - tr[n - 1].x);
+    }
+    if (ev.ideaalAlpha) out.Fenske = Math.log((xD / (1 - xD)) * ((1 - xB) / xB)) / Math.log(ev.ideaalAlpha);
+  }
+
+  if (out.azeoBlok) return out;
+  if (out.Rmin !== undefined && R <= out.Rmin * (1 + 1e-6)) {
+    out.fouten.push(`R<sub>D</sub> = ${R.toFixed(3)} ≤ R<sub>D,min</sub> = ${out.Rmin.toFixed(3)}: de werklijnen raken of snijden de evenwichtslijn. ` +
+      "Er zijn oneindig veel platen nodig; de specificaties zijn niet haalbaar.");
+    out.pinchFout = true;
+    return out;
+  }
+
+  // trappen: Murphree-dampefficientie op de platen, reboiler ideaal
+  const pseudo = (op, x) => op(x) + eta * (ev.y(x) - op(x));
+  const losOp = (op, y) => {
+    if (pseudo(op, 0) > y) return null;
+    if (pseudo(op, 1) < y) return null;
+    return bisect((x) => pseudo(op, x) - y, 0, 1, 70);
+  };
+  const vast = inp.voeding > 0 ? Math.round(inp.voeding) : 0;
+  const st = []; let y = xD, boven = true, feed = null, nmax = 300;
+  // geval: reboiler alleen volstaat al
+  let xr0 = ev.xVan(xD);
+  if (xr0 <= xB) { st.push({ n: 1, x: xr0, y: xD, yv: null, reb: true }); }
+  else {
+    for (let n = 1; n <= nmax; n++) {
+      let op = boven ? rect : strip;
+      let xn = losOp(op, y);
+      if (boven && (vast ? n === vast : (xn !== null && xn < xi))) {
+        boven = false; feed = n; op = strip; xn = losOp(op, y);
+      }
+      if (xn === null || (st.length && xn >= st[st.length - 1].x - 1e-12)) {
+        out.fouten.push(boven
+          ? "De trappen lopen vast in de rectificatiesectie (pinch boven de voeding). Kies een hogere voedingsplaat of meer reflux."
+          : "De trappen lopen vast: de strippinglijn ligt hier boven de evenwichtslijn. Kies een lagere voedingsplaat of een andere specificatie.");
+        out.vast = true; break;
+      }
+      const yv = op(xn);
+      st.push({ n, x: xn, y, yv, reb: false, sectie: boven ? "r" : "s" });
+      const xr = ev.xVan(yv);
+      if (xr <= xB * (1 + 1e-9)) {
+        st.push({ n: n + 1, x: xr, y: yv, yv: null, reb: true }); break;
+      }
+      if (n === nmax) { out.fouten.push(`Meer dan ${nmax} platen nodig: de reflux ligt te dicht bij R<sub>D,min</sub>.`); out.vast = true; }
+      y = yv;
+    }
+  }
+  out.trappen = st;
+  const reb = st.length && st[st.length - 1].reb;
+  out.nPlaten = reb ? st.length - 1 : st.length;
+  out.nTrappen = st.length;
+  if (reb) {
+    out.xBwerkelijk = st[st.length - 1].x;
+    const last = st[st.length - 1], prevx = st.length > 1 ? st[st.length - 2].x : xD;
+    out.fractieLaatste = (prevx - xB) / (prevx - last.x);
+  }
+  if (feed === null && reb && !out.vast) feed = st.length; // voeding in de reboiler
+  out.voedingsplaat = feed;
+  out.voedingInReboiler = reb && feed === st.length;
+  if (vast && reb && vast > out.nPlaten) out.waarsch.push(`Voedingsplaat ${vast} ligt onder de laatste plaat: de voeding komt in de reboiler.`);
+  if (vast && feed && !out.vast) {
+    // vergelijk met optimale voedingsplaat
+    const opt = bereken(ev, Object.assign({}, inp, { voeding: 0, mode: "R", R }));
+    if (opt.nPlaten !== undefined && opt.nPlaten < out.nPlaten)
+      out.waarsch.push(`Niet-optimale voedingsplaat: met voeding op plaat ${opt.voedingsplaat} volstaan ${opt.nPlaten} platen + reboiler (nu ${out.nPlaten}).`);
+    out.optimaal = opt;
+  }
+  if (out.Rmin !== undefined) {
+    const r = R / out.Rmin;
+    if (!isFinite(r) || out.Rmin <= 0) { /* geen verhouding */ }
+    else if (r < 1.1) out.waarsch.push(`R<sub>D</sub>/R<sub>D,min</sub> = ${r.toFixed(2)}: zeer dicht bij minimale reflux, dus erg veel platen.`);
+    else if (r > 3) out.waarsch.push(`R<sub>D</sub>/R<sub>D,min</sub> = ${r.toFixed(2)}: weinig platen, maar een hoog energieverbruik (gebruikelijk is 1.2 à 1.5).`);
+  }
+  if (out.pinch && out.pinch.sectie !== "q-lijn") out.info.push(`Minimale reflux bepaald door een raakpunt aan de evenwichtslijn in de ${out.pinch.sectie}sectie (x = ${out.pinch.x.toFixed(3)}), niet door het snijpunt met de q-lijn.`);
+
+  // warmtestromen: λ van de stroom die van fase verandert
+  const lam = inp.lambda || ev.s.lambda;
+  const lamMix = (z) => z * lam[0] + (1 - z) * lam[1];
+  const yb = ev.y(xB);
+  out.yb = yb;
+  out.QC = V * lamMix(xD) * 1000 / 3600;       // kW (V in kmol/h, λ in kJ/mol = MJ/kmol)
+  out.QR = Vb * lamMix(yb) * 1000 / 3600;
+  if (ev.T) { out.Ttop = ev.T(xD); out.Tbodem = ev.T(xB); out.Tvoeding = ev.T(zF); }
+  return out;
+}
+
+if (typeof module !== "undefined") module.exports = { SYSTEMEN, maakEvenwicht, bereken, qUitTemperatuur, pchip, bisect };
+
+</script>
+<script>
+"use strict";
+// =====================================================================
+// Extra diagrammen: T-x-y en platen/energie versus reflux
+// =====================================================================
+function asStap(span, n) { const raw = span / n, e = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / e; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * e; }
+function decVan(g) { return Math.max(0, -Math.floor(Math.log10(g) + 1e-9)); }
+
+function assenKader(svg, W, H, Mg, xr, yr, xlab, ylab, opts = {}) {
+  const pw = W - Mg.l - Mg.r, ph = H - Mg.t - Mg.b;
+  const sx = (x) => Mg.l + (x - xr[0]) / (xr[1] - xr[0]) * pw;
+  const sy = (y) => Mg.t + ph - (y - yr[0]) / (yr[1] - yr[0]) * ph;
+  const gx = opts.gx || asStap(xr[1] - xr[0], 8), gy = opts.gy || asStap(yr[1] - yr[0], 7);
+  for (let t = Math.ceil(xr[0] / gx - 1e-9) * gx; t <= xr[1] + 1e-9; t += gx) {
+    el("line", { x1: sx(t), x2: sx(t), y1: Mg.t, y2: Mg.t + ph, class: "s-grid" }, svg);
+    el("text", { x: sx(t), y: Mg.t + ph + 15, class: "s-tick", "text-anchor": "middle" }, svg, t.toFixed(decVan(gx)));
+  }
+  for (let t = Math.ceil(yr[0] / gy - 1e-9) * gy; t <= yr[1] + 1e-9; t += gy) {
+    el("line", { x1: Mg.l, x2: Mg.l + pw, y1: sy(t), y2: sy(t), class: "s-grid" }, svg);
+    el("text", { x: Mg.l - 6, y: sy(t) + 4, class: opts.ylCls || "s-tick", "text-anchor": "end" }, svg, t.toFixed(decVan(gy)));
+  }
+  el("path", { d: `M ${Mg.l} ${Mg.t} L ${Mg.l} ${Mg.t + ph} L ${Mg.l + pw} ${Mg.t + ph}`, class: "s-as" }, svg);
+  txt(svg, Mg.l + pw / 2, H - 6, xlab, "s-astitel", "middle");
+  const g = el("g", { transform: `translate(14 ${Mg.t + ph / 2}) rotate(-90)` }, svg);
+  txt(g, 0, 0, ylab, opts.ytCls || "s-astitel", "middle");
+  return { sx, sy, pw, ph };
+}
+
+// ---------------------------------------------------------------- T-x-y
+function tekenTxy(r) {
+  const svg = $("#txy"); svg.innerHTML = "";
+  const W = 520, H = 400, Mg = { l: 56, r: 14, t: 14, b: 44 };
+  const s = SYSTEMEN[S.sys];
+  if (!ev.T) {
+    txt(svg, W / 2, H / 2 - 8, "Geen temperaturen bij een systeem met constante α.", "s-lab", "middle");
+    txt(svg, W / 2, H / 2 + 12, "Kies een systeem met Antoine-gegevens (bv. benzeen – tolueen).", "s-labz", "middle");
+    $("#txyUitleg").innerHTML = "";
+    return;
+  }
+  const evT = ev.tModel || ev;     // meetgegevens: temperaturen uit het model
+  const n = 300, kook = [], dauw = [];
+  for (let i = 0; i <= n; i++) { const x = i / n, T = evT.T(x); kook.push([x, T]); dauw.push([evT.y(x), T]); }
+  let Tmin = Math.min(...kook.map((p) => p[1])), Tmax = Math.max(...kook.map((p) => p[1]));
+  const pad = (Tmax - Tmin) * 0.08 + 0.5; Tmin -= pad; Tmax += pad;
+  if (S.qMode === "T") { Tmin = Math.min(Tmin, S.TF - 2); Tmax = Math.max(Tmax, S.TF + 2); }
+  const A = assenKader(svg, W, H, Mg, [0, 1], [Tmin, Tmax], `x, y  (molfractie ${s.c1})`, "T  (°C)", { gx: 0.1 });
+  const P = (x, T) => [A.sx(x), A.sy(T)];
+  polyline(svg, kook.map((p) => P(p[0], p[1])), "s-ev");
+  polyline(svg, dauw.map((p) => P(p[0], p[1])), "s-wl");
+  // labels van de lijnen
+  const xl = 0.62;
+  txt(svg, A.sx(xl) - 6, A.sy(evT.T(xl)) + 22, "kooklijn (vloeistof)", "s-lab", "end").setAttribute("style", "fill:var(--blauw)");
+  const xl2 = 0.3, yl = evT.y(xl2);
+  txt(svg, A.sx(yl) + 6, A.sy(evT.T(xl2)) - 8, "dauwlijn (damp)", "s-lab").setAttribute("style", "fill:var(--rood)");
+  // plaattemperaturen
+  const tr = r.trappen || [];
+  if (tr.length && !r.fouten.length) {
+    let vorig = null;
+    for (const t of tr) {
+      const T = evT.T(t.x), isFeed = t.n === r.voedingsplaat && !t.reb;
+      el("circle", { cx: A.sx(t.x), cy: A.sy(T), r: isFeed ? 4.2 : 3, class: isFeed ? "m-paars" : "m-blauw" }, svg);
+      const lab = t.reb ? "R" : String(t.n), lx = A.sx(t.x) + 5, ly = A.sy(T) + 12;
+      if (!vorig || Math.hypot(lx - vorig[0], ly - vorig[1]) > 14 || t.reb || isFeed) {
+        txt(svg, lx, ly, lab, isFeed ? "s-nrfeed" : "s-nr"); vorig = [lx, ly];
+      }
+    }
+  }
+  // voeding, producten, azeotroop
+  const { xD, xB, zF } = r.inp;
+  for (const [x, lab] of [[xD, "x_D"], [xB, "x_B"]]) {
+    el("circle", { cx: A.sx(x), cy: A.sy(evT.T(x)), r: 4.5, class: "s-punt" }, svg);
+    txt(svg, A.sx(x) + (x > 0.5 ? -8 : 8), A.sy(evT.T(x)) - 8, `${lab}: ${f(evT.T(x), 1)} °C`, "s-labr", x > 0.5 ? "end" : "start");
+  }
+  const Tb = evT.T(zF), Td = evT.Tdauw(zF);
+  polyline(svg, [P(zF, Tmin), P(zF, Tmax)], "s-q");
+  txt(svg, A.sx(zF) + 5, A.sy(Tmax) + 14, "z_F", "s-lab");
+  if (S.qMode === "T") {
+    el("circle", { cx: A.sx(zF), cy: A.sy(S.TF), r: 5, class: "m-paars" }, svg);
+    txt(svg, A.sx(zF) + 8, A.sy(S.TF) + 4, `voeding T_F = ${f(S.TF, 1)} °C`, "s-lab");
+  }
+  if (ev.xaz !== null) {
+    el("circle", { cx: A.sx(ev.xaz), cy: A.sy(evT.T(ev.xaz)), r: 4, class: "s-pinch" }, svg);
+    txt(svg, A.sx(ev.xaz), A.sy(evT.T(ev.xaz)) + 18, "azeotroop", "s-labz", "middle");
+  }
+  $("#txyUitleg").innerHTML = `Bij ${f(S.sys.endsWith("data") ? 101.325 : S.P, 1)} kPa. Voeding: kookpunt ${f(Tb, 1)} °C, dauwpunt ${f(Td, 1)} °C.` +
+    (tr.length && !r.fouten.length ? ` Blauwe punten: vloeistof op elke plaat (T op de kooklijn); de temperatuur stijgt van top (${f(r.Ttop, 1)} °C) naar bodem (${f(r.Tbodem, 1)} °C).` : "") +
+    (ev.tModel ? " Temperaturen uit het UNIFAC-model, de xy-curve uit de meetgegevens." : "");
+}
+
+// ---------------------------------------------------------------- platen en energie versus reflux
+let _refluxTimer = null;
+function planRefluxGrafiek(r) {
+  clearTimeout(_refluxTimer);
+  _refluxTimer = setTimeout(() => tekenReflux(r), 120);
+}
+function tekenReflux(r) {
+  const svg = $("#rfx"); svg.innerHTML = "";
+  const W = 520, H = 400, Mg = { l: 56, r: 62, t: 14, b: 44 };
+  if (r.Rmin === undefined || !isFinite(r.Rmin) || r.azeoBlok) {
+    txt(svg, W / 2, H / 2, "Niet beschikbaar: de specificaties zijn niet haalbaar.", "s-lab", "middle");
+    $("#rfxUitleg").innerHTML = ""; svg._rfx = null; return;
+  }
+  const Rm = Math.max(r.Rmin, 1e-3), Rcur = r.R;
+  const fmax = Math.max(4, isFinite(Rcur) ? 1.25 * Rcur / Rm : 0);
+  const pts = [];
+  const nP = 46;
+  for (let i = 0; i <= nP; i++) {
+    const fac = 1.03 * Math.pow(fmax / 1.03, i / nP), R = Rm * fac;
+    const o = bereken(ev, Object.assign({}, r.inp, { mode: "R", R, voeding: 0 }));
+    if (o.fouten.length || o.nPlaten === undefined) continue;
+    pts.push({ R, N: o.nPlaten, QR: o.QR, QC: o.QC });
+  }
+  if (pts.length < 2) { txt(svg, W / 2, H / 2, "Geen haalbare punten.", "s-lab", "middle"); return; }
+  const Nmax = Math.max(...pts.map((p) => p.N)), Nlo = Math.max(0, (r.Nmin || 1) - 1);
+  const Nhi = Math.min(Nmax, Math.max(4 * (r.Nmin || 5), (r.nPlaten || 0) * 1.6, 15));
+  const Qmax = Math.max(...pts.map((p) => p.QR)) * 1.05;
+  const xr = [0, Rm * fmax], yr = [Nlo, Nhi];
+  const A = assenKader(svg, W, H, Mg, xr, yr, "refluxverhouding R_D", "aantal platen (+ reboiler)", {});
+  const sq = (Q) => Mg.t + A.ph - Q / Qmax * A.ph;
+  // rechteras Q_R
+  const gq = asStap(Qmax, 6);
+  el("line", { x1: Mg.l + A.pw, x2: Mg.l + A.pw, y1: Mg.t, y2: Mg.t + A.ph, class: "s-as" }, svg);
+  for (let t = 0; t <= Qmax + 1e-9; t += gq) el("text", { x: Mg.l + A.pw + 6, y: sq(t) + 4, class: "s-tick", style: "fill:var(--oranje)" }, svg, t.toFixed(decVan(gq)));
+  const gr = el("g", { transform: `translate(${W - 10} ${Mg.t + A.ph / 2}) rotate(90)` }, svg);
+  txt(gr, 0, 0, "Q̇_R reboiler (kW)", "s-astitel", "middle").setAttribute("style", "fill:var(--oranje)");
+  const defs = el("defs", {}, svg), cp = el("clipPath", { id: "clipRfx" }, defs);
+  el("rect", { x: Mg.l, y: Mg.t, width: A.pw, height: A.ph }, cp);
+  const plot = el("g", { "clip-path": "url(#clipRfx)" }, svg);
+  // R_min en N_min
+  polyline(plot, [[A.sx(Rm), Mg.t], [A.sx(Rm), Mg.t + A.ph]], "s-wlmin");
+  txt(plot, A.sx(Rm) + 4, Mg.t + 14, `R_{D,min} = ${f(Rm, 2)}`, "s-labz");
+  if (r.Nmin) {
+    polyline(plot, [[Mg.l, A.sy(r.Nmin - 1)], [Mg.l + A.pw, A.sy(r.Nmin - 1)]], "s-totaal");
+    txt(plot, Mg.l + A.pw - 4, A.sy(r.Nmin - 1) - 8, `N_min: ${r.Nmin - 1} ideale platen + reboiler`, "s-labz", "end");
+  }
+  // trapjeslijn voor het aantal platen
+  const stp = [];
+  pts.forEach((p, i) => { if (i) stp.push([A.sx(p.R), A.sy(pts[i - 1].N)]); stp.push([A.sx(p.R), A.sy(p.N)]); });
+  polyline(plot, stp, "s-trap");
+  polyline(plot, pts.map((p) => [A.sx(p.R), sq(p.QR)]), "s-warm");
+  // huidige toestand
+  if (isFinite(Rcur) && !r.fouten.length) {
+    polyline(plot, [[A.sx(Rcur), Mg.t], [A.sx(Rcur), Mg.t + A.ph]], "s-q");
+    el("circle", { cx: A.sx(Rcur), cy: A.sy(r.nPlaten), r: 5, class: "s-punt" }, plot);
+    el("circle", { cx: A.sx(Rcur), cy: sq(r.QR), r: 5, class: "m-oranje" }, plot);
+    txt(plot, A.sx(Rcur) - 8, A.sy(r.nPlaten) + 16, `${r.nPlaten} platen`, "s-labr", "end");
+    txt(plot, A.sx(Rcur) + 8, sq(r.QR) - 8, `${f(r.QR, 0)} kW`, "s-lab").setAttribute("style", "fill:var(--oranje)");
+  }
+  svg._rfx = { A, Mg, xr };
+  const opt = r.Rmin ? `R<sub>D</sub>/R<sub>D,min</sub> = ${f(r.R / r.Rmin, 2)}` : "";
+  $("#rfxUitleg").innerHTML = `Telkens met optimale voedingsplaat${S.eta < 1 ? ` en η<sub>M</sub> = ${f(S.eta, 2)}` : ""}. Nu: ${opt}. ` +
+    "Dichtbij R<sub>D,min</sub> loopt het aantal platen naar oneindig, bij hoge reflux nadert het N<sub>min</sub> terwijl Q̇<sub>R</sub> lineair blijft stijgen: het economische optimum ligt meestal rond 1.2 à 1.5 R<sub>D,min</sub>. Klik in de grafiek om die R<sub>D</sub> te kiezen.";
+}
+function koppelReflux() {
+  const svg = $("#rfx");
+  svg.addEventListener("click", (e) => {
+    const m = svg._rfx; if (!m) return;
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const R = m.xr[0] + (p.x - m.Mg.l) / m.A.pw * (m.xr[1] - m.xr[0]);
+    if (!(R > 0)) return;
+    S.mode = "R"; S.R = +R.toPrecision(3); syncInvoer(); update();
+  });
+}
+
+</script>
+<script>
+"use strict";
+// =====================================================================
+// Interface destillatie-demonstrator
+// =====================================================================
+const $ = (s) => document.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const f = (v, d = 3) => (v === undefined || v === null || !isFinite(v)) ? "–" : Number(v).toFixed(d);
+const fx = (v) => { // samenstelling: genoeg cijfers ook bij strenge zuiverheden
+  if (v === undefined || v === null || !isFinite(v)) return "–";
+  if (v !== 0 && Math.abs(v) < 0.001) return v.toExponential(2).replace("e", "·10^").replace(/\^([-+]?)(\d+)/, (m, s, d) => "<sup>" + (s === "-" ? "−" : "") + d + "</sup>");
+  if (v > 0.999 && v < 1) return v.toFixed(5);
+  return v.toFixed(4);
+};
+
+const STANDAARD = {
+  sys: "ideaal", alpha: 2.5, A12: 1.0, A21: 1.0, P: 101.325,
+  F: 100, zF: 0.50, xD: 0.95, xB: 0.05,
+  qMode: "q", q: 1, fV: 0, TF: 25, cpL: 160, cpV: 100,
+  mode: "Rfac", R: 2, Rfac: 1.5, VB: 2,
+  eta: 1, vast: false, voeding: 5, lam: 30,
+};
+
+const PRESETS = [
+  { naam: "Standaard (ideaal, α = 2.5)", s: {} },
+  { naam: "Vb 5.2 (1): verzadigde vloeistof", s: { sys: "ideaal", alpha: 2.5, F: 30, zF: 0.40, xD: 0.97, xB: 0.02, qMode: "q", q: 1, mode: "R", R: 3.5 } },
+  { naam: "Vb 5.2 (2): onderkoelde vloeistof (q = 1.37)", s: { sys: "ideaal", alpha: 2.5, F: 30, zF: 0.40, xD: 0.97, xB: 0.02, qMode: "q", q: 1 + 160 * 75 / 32296, mode: "R", R: 3.5 } },
+  { naam: "Vb 5.2 (3): 2/3 damp (q = 1/3)", s: { sys: "ideaal", alpha: 2.5, F: 30, zF: 0.40, xD: 0.97, xB: 0.02, qMode: "f", fV: 2 / 3, mode: "R", R: 3.5 } },
+  { naam: "Oef 5.3: benzeen – tolueen, R_D = 3.5", s: { sys: "bt", F: 100, zF: 0.44, xD: 0.974, xB: 0.0235, qMode: "q", q: 1, mode: "R", R: 3.5 } },
+  { naam: "Oef 5.5: ethanol – water (Perry), L/V = 0.80", s: { sys: "ewdata", F: 100, zF: 0.20, xD: 0.85, xB: 0.0078, qMode: "q", q: 1, mode: "R", R: 4 } },
+  { naam: "Oef 5.6: methanol – water, η = 70%", s: { sys: "mwdata", F: 100, zF: 0.75, xD: 0.99, xB: 0.0002, qMode: "q", q: 1.15, mode: "R", R: 1.4, eta: 0.7 } },
+  { naam: "Oef 5.7: aceton – methanol (UNIFAC), R = 2 R_min", s: { sys: "am", F: 100, zF: 0.25, xD: 0.77, xB: 0.01, qMode: "f", fV: 0.7, mode: "Rfac", Rfac: 2, eta: 0.7 } },
+  { naam: "Inzicht: tangent pinch ethanol – water", s: { sys: "ew", F: 100, zF: 0.10, xD: 0.85, xB: 0.005, qMode: "q", q: 1, mode: "Rfac", Rfac: 1.3 } },
+  { naam: "Inzicht: eigen azeotroop (Van Laar)", s: { sys: "vanlaar", alpha: 1.8, A12: 1.1, A21: 0.9, F: 100, zF: 0.4, xD: 0.75, xB: 0.05, qMode: "q", q: 1, mode: "Rfac", Rfac: 1.5 } },
+];
+
+let S = Object.assign({}, STANDAARD);
+let REF = null, VIEW = null, laatste = null;
+
+// ---------------------------------------------------------------- invoerpaneel
+const VELDEN = {}; // id -> {rng, num, def}
+function maakVeld(parent, id, label, def) {
+  const rij = document.createElement("div"); rij.className = "rij" + (def.radio ? " radio" : ""); rij.id = "rij-" + id;
+  const lab = document.createElement("label");
+  if (def.radio) {
+    const r = document.createElement("input"); r.type = "radio"; r.name = def.radio; r.value = def.radioVal;
+    r.addEventListener("change", () => { S[def.radioKey] = def.radioVal; update(); });
+    lab.appendChild(r); def.radioEl = r;
+    const sp = document.createElement("span"); sp.innerHTML = label; lab.appendChild(sp);
+  } else lab.innerHTML = label;
+  lab.htmlFor = def.radio ? "" : "n-" + id;
+  const rng = document.createElement("input"); rng.type = "range"; rng.min = 0; rng.max = 1000; rng.step = 1;
+  rng.setAttribute("aria-label", label.replace(/<[^>]+>/g, ""));
+  const num = document.createElement("input"); num.type = "number"; num.id = "n-" + id; num.step = def.step || "any";
+  if (def.min !== undefined) num.min = def.min; if (def.max !== undefined) num.max = def.max;
+  rij.append(lab, rng, num); parent.appendChild(rij);
+  const toS = (v) => def.log ? 1000 * Math.log(v / def.min) / Math.log(def.max / def.min) : 1000 * (v - def.min) / (def.max - def.min);
+  const vanS = (s) => def.log ? def.min * Math.pow(def.max / def.min, s / 1000) : def.min + (def.max - def.min) * s / 1000;
+  const rond = (v) => def.rond ? def.rond(v) : v;
+  rng.addEventListener("input", () => {
+    if (def.radio && S[def.radioKey] !== def.radioVal) { S[def.radioKey] = def.radioVal; }
+    S[id] = rond(vanS(+rng.value)); num.value = fmtIn(S[id], def); update(true);
+  });
+  num.addEventListener("change", () => {
+    const v = parseFloat(String(num.value).replace(",", "."));
+    if (!isFinite(v)) { num.value = fmtIn(S[id], def); return; }
+    if (def.radio && S[def.radioKey] !== def.radioVal) { S[def.radioKey] = def.radioVal; }
+    S[id] = v; rng.value = Math.max(0, Math.min(1000, toS(v))); update();
+  });
+  VELDEN[id] = { rij, rng, num, def, toS, set(v) { num.value = fmtIn(v, def); rng.value = Math.max(0, Math.min(1000, toS(v))); } };
+}
+function fmtIn(v, def) {
+  if (!isFinite(v)) return "";
+  if (def.dec !== undefined) return (+v).toFixed(def.dec);
+  if (Math.abs(v) < 0.01 && v !== 0) return (+v).toPrecision(3);
+  return String(+(+v).toPrecision(5));
+}
+
+function bouwInvoer() {
+  const p = $("#invoer");
+  p.innerHTML = '<h2>Invoer</h2>';
+  // systeem
+  let fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Systeem en evenwicht</legend>";
+  const sel = document.createElement("select"); sel.id = "sys"; sel.style.width = "100%";
+  for (const [k, s] of Object.entries(SYSTEMEN)) { const o = document.createElement("option"); o.value = k; o.textContent = s.naam; sel.appendChild(o); }
+  sel.addEventListener("change", () => { S.sys = sel.value; VIEW = null; update(); });
+  fs.appendChild(sel);
+  const ul = document.createElement("div"); ul.className = "uitleg"; ul.id = "sysUitleg"; fs.appendChild(ul);
+  maakVeld(fs, "alpha", "α (rel. vluchtigh.)", { min: 1.05, max: 10, log: true, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "A12", "A<sub>12</sub> (Van Laar)", { min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "A21", "A<sub>21</sub> (Van Laar)", { min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "P", "druk P (kPa)", { min: 20, max: 500, log: true, rond: (v) => +v.toFixed(1) });
+  maakVeld(fs, "lam", "λ (kJ/mol)", { min: 10, max: 60, rond: (v) => +v.toFixed(1) });
+  p.appendChild(fs);
+
+  // voeding
+  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Voeding</legend>";
+  maakVeld(fs, "F", "F (kmol/h)", { min: 1, max: 1000, log: true, rond: (v) => +v.toPrecision(3) });
+  maakVeld(fs, "zF", "z<sub>F</sub>", { min: 0.01, max: 0.99, rond: (v) => +v.toFixed(3) });
+  const k = document.createElement("div"); k.className = "keuze"; k.id = "qKeuze";
+  k.innerHTML = '<span class="klein">toestand via:</span>' +
+    '<label><input type="radio" name="qm" value="q"> q</label>' +
+    '<label><input type="radio" name="qm" value="f"> dampfractie</label>' +
+    '<label id="lab-qT"><input type="radio" name="qm" value="T"> temperatuur</label>';
+  k.querySelectorAll("input").forEach((r) => r.addEventListener("change", () => { S.qMode = r.value; update(); }));
+  fs.appendChild(k);
+  maakVeld(fs, "q", "q", { min: -1, max: 2, rond: (v) => +v.toFixed(3) });
+  maakVeld(fs, "fV", "dampfractie f", { min: 0, max: 1, rond: (v) => +v.toFixed(3) });
+  maakVeld(fs, "TF", "T<sub>F</sub> (°C)", { min: 0, max: 200, rond: (v) => +v.toFixed(1) });
+  maakVeld(fs, "cpL", "c<sub>p,L</sub> (kJ/kmol·K)", { min: 50, max: 300, rond: (v) => Math.round(v) });
+  maakVeld(fs, "cpV", "c<sub>p,V</sub> (kJ/kmol·K)", { min: 20, max: 200, rond: (v) => Math.round(v) });
+  const qi = document.createElement("div"); qi.className = "uitleg"; qi.id = "qUitleg"; fs.appendChild(qi);
+  p.appendChild(fs);
+
+  // producten
+  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Gewenste zuiverheid</legend>";
+  maakVeld(fs, "xD", "x<sub>D</sub> (top)", { min: 0.5, max: 0.9999, rond: (v) => +v.toFixed(4) });
+  maakVeld(fs, "xB", "x<sub>B</sub> (bodem)", { min: 0.0001, max: 0.4, log: true, rond: (v) => +v.toPrecision(3) });
+  p.appendChild(fs);
+
+  // reflux
+  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Reflux of boilup (kies er één)</legend>";
+  maakVeld(fs, "R", "R<sub>D</sub> = L/D", { min: 0.05, max: 30, log: true, rond: (v) => +v.toPrecision(3), radio: "rm", radioVal: "R", radioKey: "mode" });
+  maakVeld(fs, "Rfac", "R<sub>D</sub>/R<sub>D,min</sub>", { min: 1.0, max: 5, rond: (v) => +v.toFixed(2), radio: "rm", radioVal: "Rfac", radioKey: "mode" });
+  maakVeld(fs, "VB", "V<sub>B</sub> = V̄/B", { min: 0.05, max: 40, log: true, rond: (v) => +v.toPrecision(3), radio: "rm", radioVal: "VB", radioKey: "mode" });
+  const ru = document.createElement("div"); ru.className = "uitleg";
+  ru.innerHTML = "Met F, z<sub>F</sub>, q, x<sub>D</sub> en x<sub>B</sub> vast, bepaalt één van deze drie de andere twee.";
+  fs.appendChild(ru);
+  p.appendChild(fs);
+
+  // kolom
+  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Kolom</legend>";
+  maakVeld(fs, "eta", "η<sub>M</sub> (Murphree)", { min: 0.2, max: 1, rond: (v) => +v.toFixed(2) });
+  const kv = document.createElement("div"); kv.className = "keuze";
+  kv.innerHTML = '<label><input type="checkbox" id="vastChk"> vaste voedingsplaat (i.p.v. optimaal)</label>';
+  fs.appendChild(kv);
+  $("#invoer").appendChild(fs);
+  $("#vastChk").addEventListener("change", (e) => { S.vast = e.target.checked; update(); });
+  maakVeld(fs, "voeding", "voedingsplaat", { min: 1, max: 60, step: 1, rond: (v) => Math.round(v), dec: 0 });
+  p.appendChild(fs);
+  syncInvoer();
+}
+
+function syncInvoer() {
+  $("#sys").value = S.sys;
+  for (const [id, v] of Object.entries(VELDEN)) v.set(S[id]);
+  document.querySelectorAll('input[name=qm]').forEach((r) => { r.checked = r.value === S.qMode; });
+  VELDEN.R.def.radioEl.checked = S.mode === "R";
+  VELDEN.Rfac.def.radioEl.checked = S.mode === "Rfac";
+  VELDEN.VB.def.radioEl.checked = S.mode === "VB";
+  $("#vastChk").checked = S.vast;
+}
+
+function zichtbaar(id, aan) { VELDEN[id].rij.style.display = aan ? "" : "none"; }
+
+// ---------------------------------------------------------------- berekening
+let ev = null, evKey = "";
+function update(snel) {
+  const s = SYSTEMEN[S.sys];
+  const key = S.sys + "|" + S.alpha + "|" + S.A12 + "|" + S.A21 + "|" + (s.soort === "model" ? S.P : "");
+  if (key !== evKey) { ev = maakEvenwicht(S.sys, { alpha: S.alpha, A12: S.A12, A21: S.A21, P: S.P }); evKey = key; }
+
+  // zichtbaarheid invoer
+  zichtbaar("alpha", s.soort === "alpha" || s.soort === "vanlaar");
+  VELDEN.alpha.rij.querySelector("label").innerHTML = s.soort === "vanlaar" ? "α<sub>0</sub> (ideaal deel)" : "α (rel. vluchtigh.)";
+  zichtbaar("A12", s.soort === "vanlaar"); zichtbaar("A21", s.soort === "vanlaar");
+  zichtbaar("P", s.soort === "model");
+  zichtbaar("lam", s.soort === "alpha" || s.soort === "vanlaar");
+  const heeftT = !!ev.T;
+  $("#lab-qT").style.display = heeftT ? "" : "none";
+  if (!heeftT && S.qMode === "T") { S.qMode = "q"; document.querySelectorAll('input[name=qm]').forEach((r) => { r.checked = r.value === "q"; }); }
+  zichtbaar("q", S.qMode === "q"); zichtbaar("fV", S.qMode === "f");
+  ["TF", "cpL", "cpV"].forEach((i) => zichtbaar(i, S.qMode === "T"));
+  zichtbaar("voeding", S.vast);
+  let su = s.uitleg;
+  if (s.soort === "model" && S.sys === "be" && s.A) su += ` (A<sub>12</sub> = ${s.A[0].toFixed(3)}, A<sub>21</sub> = ${s.A[1].toFixed(3)})`;
+  if (s.soort === "data") su += " Druk: 1 atm.";
+  $("#sysUitleg").innerHTML = su + ` <br>x en y: molfractie <b>${s.c1}</b>.`;
+
+  // q
+  let q = S.q, qtxt = "";
+  const lam = (s.soort === "alpha" || s.soort === "vanlaar") ? [S.lam, S.lam] : s.lambda;
+  if (S.qMode === "f") { q = 1 - S.fV; qtxt = `q = 1 − f = ${f(q, 3)}`; }
+  else if (S.qMode === "T" && heeftT) {
+    const lamF = S.zF * lam[0] + (1 - S.zF) * lam[1];
+    const r = qUitTemperatuur(ev, S.zF, S.TF, S.cpL, S.cpV, lamF);
+    q = r.q;
+    const toestand = S.TF < r.Tb ? "onderkoelde vloeistof" : S.TF > r.Td ? "oververhitte damp" : "damp-vloeistofmengsel";
+    qtxt = `Kookpunt voeding ${f(r.Tb, 1)} °C, dauwpunt ${f(r.Td, 1)} °C → ${toestand}, q = ${f(q, 3)} (λ<sub>F</sub> = ${f(lamF, 1)} kJ/mol).`;
+  }
+  if (S.qMode === "q") {
+    qtxt = q > 1 ? "q > 1: onderkoelde vloeistof" : Math.abs(q - 1) < 1e-9 ? "q = 1: verzadigde vloeistof (kookpunt)" :
+      q > 0 ? "0 < q < 1: damp-vloeistofmengsel" : Math.abs(q) < 1e-9 ? "q = 0: verzadigde damp (dauwpunt)" : "q < 0: oververhitte damp";
+  }
+  $("#qUitleg").innerHTML = qtxt;
+
+  const inp = { F: S.F, zF: S.zF, xD: S.xD, xB: S.xB, q, mode: S.mode, R: S.R, Rfac: S.Rfac, VB: S.VB, eta: S.eta, voeding: S.vast ? S.voeding : 0, lambda: lam };
+  const r = bereken(ev, inp);
+  r.inp = inp; laatste = r;
+
+  // berekende waarden in de niet-actieve refluxvelden
+  for (const [id, val] of [["R", r.R], ["Rfac", r.Rmin ? r.R / r.Rmin : NaN], ["VB", r.VB]]) {
+    const v = VELDEN[id], actief = S.mode === id;
+    v.rij.classList.toggle("uit", !actief);
+    if (!actief && isFinite(val)) { v.num.value = fmtIn(val, v.def); v.rng.value = Math.max(0, Math.min(1000, v.toS(val))); }
+  }
+  tekenKolom(r);
+  tekenMT(r);
+  tekenTabel(r);
+  tekenTxy(r);
+  planRefluxGrafiek(r);
+  if (!snel) schrijfHash();
+}
+
+// ---------------------------------------------------------------- SVG-hulp
+function el(tag, attrs, parent, tekst) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (tekst !== undefined) e.textContent = tekst;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+// tekst met eenvoudige subscripts: "x_D = 0.95" -> x<tspan>D</tspan>
+function txt(parent, x, y, s, cls, anchor) {
+  const t = el("text", { x, y, class: cls, "text-anchor": anchor || "start" }, parent);
+  const delen = s.split(/(_\{[^}]*\}|_[A-Za-z0-9,]|\^\{[^}]*\})/);
+  for (const d of delen) {
+    if (!d) continue;
+    if (d.startsWith("_")) {
+      const inh = d.startsWith("_{") ? d.slice(2, -1) : d.slice(1);
+      el("tspan", { "baseline-shift": "sub", "font-size": "75%" }, t, inh);
+    } else if (d.startsWith("^")) {
+      el("tspan", { "baseline-shift": "super", "font-size": "75%" }, t, d.slice(2, -1));
+    } else el("tspan", {}, t, d);
+  }
+  return t;
+}
+function pijl(parent, x1, y1, x2, y2, cls, kleurCls) {
+  el("line", { x1, y1, x2, y2, class: cls }, parent);
+  const a = Math.atan2(y2 - y1, x2 - x1), L = 8, w = 4.2;
+  const p = [[x2, y2], [x2 - L * Math.cos(a) + w * Math.sin(a), y2 - L * Math.sin(a) - w * Math.cos(a)],
+    [x2 - L * Math.cos(a) - w * Math.sin(a), y2 - L * Math.sin(a) + w * Math.cos(a)]];
+  el("polygon", { points: p.map((q) => q.join(",")).join(" "), class: kleurCls }, parent);
+}
+function polyline(parent, pts, cls) {
+  if (pts.length < 2) return;
+  el("polyline", { points: pts.map((p) => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(" "), class: cls }, parent);
+}
+
+// ---------------------------------------------------------------- kolomschema
+function tekenKolom(r) {
+  const svg = $("#kolom"); svg.innerHTML = "";
+  const cx = 155, w = 70, x0 = cx - w / 2, x1 = cx + w / 2, top = 122, bot = 470;
+  const N = r.nPlaten, ok = !r.fouten.length && N !== undefined;
+  const MAXT = 30, nTeken = ok ? Math.min(N, MAXT) : 10;
+  const yPl = (i) => top + 16 + (bot - top - 32) * (nTeken === 1 ? 0.5 : (i - 1) / (nTeken - 1));
+  let feedI = null;
+  if (ok && r.voedingsplaat && !r.voedingInReboiler) feedI = N <= MAXT ? r.voedingsplaat : Math.max(1, Math.round(1 + (r.voedingsplaat - 1) * (nTeken - 1) / Math.max(1, N - 1)));
+  const yF = feedI ? yPl(feedI) : (top + bot) / 2;
+  // stromen boven: damp naar condensor
+  const cxC = 240, cyC = 52;
+  el("path", { d: `M ${cx} ${top} L ${cx} ${cyC} L ${cxC - 16} ${cyC}`, class: "s-damp" }, svg);
+  txt(svg, cx - 7, 84, "V = " + (r.V > 0 ? f(r.V, 1) : "?"), "t-damp", "end");
+  el("circle", { cx: cxC, cy: cyC, r: 16, class: "s-app" }, svg);
+  el("path", { d: `M ${cxC - 9} ${cyC + 7} l 4 -14 l 5 14 l 5 -14 l 4 14`, class: "s-warm", "stroke-width": 1.6 }, svg);
+  pijl(svg, cxC, cyC - 16, cxC, 6, "s-warm", "m-oranje");
+  txt(svg, cxC + 8, 18, "Q̇_C = " + (ok ? f(r.QC, 0) + " kW" : "?"), "t-warm");
+  txt(svg, cxC + 22, cyC + 4, "condensor", "t-zacht");
+  // reflux en destillaat
+  const yj = 94;
+  el("path", { d: `M ${cxC} ${cyC + 16} L ${cxC} ${yj}`, class: "s-vl" }, svg);
+  el("path", { d: `M ${cxC} ${yj} L ${x1 + 16} ${yj} L ${x1 + 16} ${top + 14}`, class: "s-vl" }, svg);
+  pijl(svg, x1 + 16, top + 14, x1 + 2, top + 14, "s-vl", "m-blauw");
+  pijl(svg, cxC, yj, 334, yj, "s-vl", "m-blauw");
+  txt(svg, 334, yj - 6, "D = " + f(r.D, 2), "t-vl", "end");
+  txt(svg, 334, yj + 18, "x_D = " + S.xD, "t-vl", "end");
+  txt(svg, 334, yj + 34, "R_D = " + (r.R > 0 ? f(r.R, 2) : "?"), "t-gew", "end");
+  if (r.Ttop !== undefined) txt(svg, 334, yj + 50, "T = " + f(r.Ttop, 1) + " °C", "t-zacht", "end");
+  // kolomlichaam en platen
+  el("rect", { x: x0, y: top, width: w, height: bot - top, rx: 14, class: "s-kolom" }, svg);
+  for (let i = 1; i <= nTeken; i++) {
+    const y = yPl(i);
+    el("line", { x1: x0 + (i % 2 ? 0 : 14), x2: x1 - (i % 2 ? 14 : 0), y1: y, y2: y, class: i === feedI ? "s-plaatfeed" : "s-plaat" }, svg);
+  }
+  if (ok) {
+    txt(svg, x0 - 4, yPl(1) + 4, "1", "t-zacht", "end");
+    if (N > 1) txt(svg, x0 - 4, yPl(nTeken) + 4, String(N), "t-zacht", "end");
+    if (N > MAXT) txt(svg, cx, bot + 14, `(${MAXT} van ${N} platen getekend)`, "t-zacht", "middle");
+  } else txt(svg, cx, (top + bot) / 2 + 4, "N = ?", "t-gew", "middle");
+  // secties
+  for (const [y0, y1, t] of [[top, yF, "RECTIFICATIE"], [yF, bot, "STRIPPING"]]) {
+    const ym = (y0 + y1) / 2;
+    if (y1 - y0 > 70) el("text", { x: 16, y: ym, class: "t-sectie", "text-anchor": "middle", transform: `rotate(-90 16 ${ym})` }, svg, t);
+  }
+  if (r.L > 0) {
+    const yr = Math.max(top + 44, Math.min((top + yF) / 2, yF - 30));
+    const ys = Math.max(yF + 22, Math.min((yF + bot) / 2, bot - 44));
+    txt(svg, x1 + 8, yr, "L = " + f(r.L, 1), "t-vl"); txt(svg, x1 + 8, yr + 16, "V = " + f(r.V, 1), "t-damp");
+    txt(svg, x1 + 8, ys, "L̄ = " + f(r.Lb, 1), "t-vl"); txt(svg, x1 + 8, ys + 16, "V̄ = " + f(r.Vb, 1), "t-damp");
+  }
+  // voeding
+  const qk = r.q >= 1 ? "s-vl" : r.q <= 0 ? "s-damp" : "s-voed", qm = r.q >= 1 ? "m-blauw" : r.q <= 0 ? "m-rood" : "m-paars";
+  const qt = r.q >= 1 ? "t-vl" : r.q <= 0 ? "t-damp" : "t-voed";
+  if (r.voedingInReboiler) {
+    txt(svg, 30, 520, "voeding in de reboiler", qt);
+  } else {
+    pijl(svg, 30, yF, x0 - 2, yF, qk, qm);
+    txt(svg, 30, yF - 38, "F = " + f(S.F, 1), qt);
+    txt(svg, 30, yF - 23, "z_F = " + S.zF, qt);
+    txt(svg, 30, yF - 8, "q = " + f(r.q, 2), qt);
+    if (ok) txt(svg, 30, yF + 17, "plaat " + r.voedingsplaat, "t-voed");
+  }
+  // reboiler
+  const ry = 532, rx = 240;
+  el("path", { d: `M ${cx} ${bot} L ${cx} ${ry} L ${rx - 24} ${ry}`, class: "s-vl" }, svg);
+  txt(svg, cx - 6, 512, "L_N", "t-vl", "end");
+  el("rect", { x: rx - 24, y: ry - 16, width: 48, height: 32, rx: 8, class: "s-app" }, svg);
+  el("path", { d: `M ${rx - 15} ${ry + 6} l 5 -12 l 5 12 l 5 -12 l 5 12 l 5 -12`, class: "s-warm", "stroke-width": 1.6 }, svg);
+  el("path", { d: `M ${rx} ${ry - 16} L ${rx} ${bot - 22}`, class: "s-damp" }, svg);
+  pijl(svg, rx, bot - 22, x1 + 2, bot - 22, "s-damp", "m-rood");
+  txt(svg, rx - 6, 500, "V̄, y_b", "t-damp", "end");
+  pijl(svg, 344, ry, rx + 24, ry, "s-warm", "m-oranje");
+  txt(svg, rx + 30, ry + 20, "Q̇_R = " + (ok ? f(r.QR, 0) + " kW" : "?"), "t-warm");
+  txt(svg, rx + 30, ry - 8, "reboiler", "t-zacht");
+  pijl(svg, rx, ry + 16, rx, 600, "s-vl", "m-blauw");
+  txt(svg, rx - 8, 580, "B = " + f(r.B, 2), "t-vl", "end");
+  txt(svg, rx - 8, 596, "x_B = " + S.xB, "t-vl", "end");
+  txt(svg, rx + 8, 580, "V_B = " + (r.VB > 0 ? f(r.VB, 2) : "?"), "t-gew");
+  if (r.Tbodem !== undefined) txt(svg, rx + 8, 596, "T = " + f(r.Tbodem, 1) + " °C", "t-zacht");
+  if (S.eta < 1 && ok) txt(svg, 4, 596, "η_M = " + f(S.eta, 2), "t-zacht");
+  txt(svg, 4, 14, "debieten in kmol/h", "t-zacht");
+}
+
+// ---------------------------------------------------------------- McCabe-Thiele
+const M = { l: 62, r: 16, t: 14, b: 50, W: 640, H: 600 };
+function volView() { return { x0: 0, x1: 1, y0: 0, y1: 1 }; }
+function tekenMT(r) {
+  const svg = $("#mt"); svg.innerHTML = "";
+  const v = VIEW || volView();
+  const pw = M.W - M.l - M.r, ph = M.H - M.t - M.b;
+  const sx = (x) => M.l + (x - v.x0) / (v.x1 - v.x0) * pw;
+  const sy = (y) => M.t + ph - (y - v.y0) / (v.y1 - v.y0) * ph;
+  const P = (x, y) => [sx(x), sy(y)];
+  svg._map = { sx, sy, v, pw, ph };
+  const defs = el("defs", {}, svg);
+  const cp = el("clipPath", { id: "clipMT" }, defs);
+  el("rect", { x: M.l, y: M.t, width: pw, height: ph }, cp);
+
+  // raster en assen
+  const stap = (span) => { const raw = span / 10, e = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / e; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * e; };
+  const gx = stap(v.x1 - v.x0), gy = stap(v.y1 - v.y0);
+  const dec = (g) => Math.max(0, -Math.floor(Math.log10(g) + 1e-9));
+  const g = el("g", {}, svg);
+  for (let t = Math.ceil(v.x0 / gx - 1e-9) * gx; t <= v.x1 + 1e-9; t += gx) {
+    el("line", { x1: sx(t), x2: sx(t), y1: M.t, y2: M.t + ph, class: "s-grid" }, g);
+    el("text", { x: sx(t), y: M.t + ph + 16, class: "s-tick", "text-anchor": "middle" }, g, t.toFixed(dec(gx)));
+  }
+  for (let t = Math.ceil(v.y0 / gy - 1e-9) * gy; t <= v.y1 + 1e-9; t += gy) {
+    el("line", { x1: M.l, x2: M.l + pw, y1: sy(t), y2: sy(t), class: "s-grid" }, g);
+    el("text", { x: M.l - 6, y: sy(t) + 4, class: "s-tick", "text-anchor": "end" }, g, t.toFixed(dec(gy)));
+  }
+  el("path", { d: `M ${M.l} ${M.t} L ${M.l} ${M.t + ph} L ${M.l + pw} ${M.t + ph}`, class: "s-as" }, svg);
+  const s = SYSTEMEN[S.sys];
+  txt(svg, M.l + pw / 2, M.H - 10, `x  (molfractie ${s.c1} in vloeistof)`, "s-astitel", "middle");
+  const yt = el("g", { transform: `translate(16 ${M.t + ph / 2}) rotate(-90)` }, svg);
+  txt(yt, 0, 0, `y  (molfractie ${s.c1} in damp)`, "s-astitel", "middle");
+
+  const plot = el("g", { "clip-path": "url(#clipMT)" }, svg);
+  const lo = Math.max(0, v.x0), hi = Math.min(1, v.x1);
+  // diagonaal
+  polyline(plot, [P(lo, lo), P(hi, hi)], "s-diag");
+
+  // referentie
+  if (REF) {
+    if (REF.evKey !== evKey) polyline(plot, REF.ev.filter((p) => p[0] >= lo - 0.02 && p[0] <= hi + 0.02).map((p) => P(p[0], p[1])), "s-ref");
+    if (REF.wl) for (const seg of REF.wl) polyline(plot, seg.map((p) => P(p[0], p[1])), "s-ref");
+    if (REF.trap) polyline(plot, REF.trap.map((p) => P(p[0], p[1])), "s-reftrap");
+  }
+
+  // evenwichtslijn (fijn bemonsterd in het zichtvenster)
+  const n = 500, evPts = [];
+  for (let i = 0; i <= n; i++) { const x = lo + (hi - lo) * i / n; evPts.push([x, ev.y(x)]); }
+  polyline(plot, evPts.map((p) => P(p[0], p[1])), "s-ev");
+  // pseudo-evenwichtslijn
+  if (r.eta < 1 && r.rect && !r.pinchFout) {
+    const ps = [];
+    for (let i = 0; i <= n; i++) {
+      const x = r.inp.xB + (r.inp.xD - r.inp.xB) * i / n; if (x < lo || x > hi) continue;
+      const op = x >= r.xi ? r.rect : r.strip; ps.push(P(x, op(x) + r.eta * (ev.y(x) - op(x))));
+    }
+    polyline(plot, ps, "s-ps");
+  }
+  const { xD, xB, zF } = r.inp;
+  r.xB = xB;
+
+  // q-lijn
+  if ($("#tQ").checked && r.pinchQ) {
+    const xe = r.rect ? (Math.abs(r.q - 1) < 1e-9 ? zF : r.xi) : r.pinchQ.x;
+    const x2 = (r.pinchQ && Math.abs(r.pinchQ.x - zF) > Math.abs(xe - zF)) ? r.pinchQ.x : xe;
+    const qy = (x) => Math.abs(r.q - 1) < 1e-9 ? null : r.q / (r.q - 1) * x - zF / (r.q - 1);
+    if (Math.abs(r.q - 1) < 1e-9) polyline(plot, [P(zF, zF), P(zF, Math.max(r.pinchQ.y, r.yi || 0))], "s-q");
+    else polyline(plot, [P(zF, zF), P(x2, qy(x2))], "s-q");
+  }
+  // minimale reflux
+  if ($("#tRmin").checked && r.Rmin !== undefined && isFinite(r.Rmin)) {
+    const Rm = r.Rmin, b = xD / (Rm + 1);
+    const pin = r.pinch;
+    polyline(plot, [P(0, b), P(xD, xD)], "s-wlmin");
+    el("circle", { cx: sx(pin.x), cy: sy(pin.y), r: 4.5, class: "s-pinch" }, plot);
+    if (v.x0 <= 0.001) {
+      el("circle", { cx: sx(0), cy: sy(b), r: 3.5, class: "s-pinch" }, plot);
+      txt(plot, sx(0) + 8, sy(b) - 8, `x_D/(R_{D,min}+1) = ${f(b, 3)}`, "s-labz");
+    }
+  }
+  // totale reflux
+  if ($("#tTot").checked && r.totaal) {
+    const pts = [P(xD, xD)]; let yp = xD;
+    for (const t of r.totaal) { pts.push(P(t.x, yp)); pts.push(P(t.x, t.x)); yp = t.x; }
+    polyline(plot, pts, "s-totaal");
+  }
+  // werklijnen
+  if (r.rect) {
+    polyline(plot, [P(r.xi, r.yi), P(xD, xD)], "s-wl");
+    polyline(plot, [P(xB, xB), P(r.xi, r.yi)], "s-wl");
+  }
+  // trappen
+  const tr = r.trappen || [];
+  if (tr.length) {
+    let yv = xD, xprev = xD;
+    const nrs = $("#tNr").checked; let vorigLab = null;
+    for (const t of tr) {
+      const isFeed = t.n === r.voedingsplaat && !t.reb;
+      const gT = el("g", {}, plot);
+      el("title", {}, gT, t.reb ? `reboiler: x_B = ${fxPlain(t.x)}, y_b = ${fxPlain(t.yv === null ? ev.y(t.x) : t.yv)}` :
+        `plaat ${t.n}${isFeed ? " (voedingsplaat)" : ""}: x = ${fxPlain(t.x)}, y = ${fxPlain(t.y)}`);
+      const end = t.yv !== null ? t.yv : (r.strip ? r.strip(t.x) : t.x);
+      polyline(gT, [P(xprev, t.y), P(t.x, t.y), P(t.x, end)], isFeed ? "s-trapfeed" : "s-trap");
+      if (nrs) {
+        const lab = t.reb ? "R" : String(t.n), lx = sx(t.x) - 3, ly = sy(t.y) - 4;
+        const ver = !vorigLab || Math.hypot(lx - vorigLab[0], ly - vorigLab[1]) > 15;
+        if (ver || t.reb || isFeed) { txt(plot, lx, ly, lab, isFeed ? "s-nrfeed" : "s-nr", "end"); vorigLab = [lx, ly]; }
+      }
+      xprev = t.x; yv = t.yv;
+    }
+    void yv;
+  }
+  // punten x_B, z_F, x_D
+  for (const [x, lab] of [[xD, "x_D"], [zF, "z_F"], [xB, "x_B"]]) {
+    if (x < v.x0 || x > v.x1 || x < v.y0 || x > v.y1) continue;
+    el("circle", { cx: sx(x), cy: sy(x), r: 4, class: "s-punt" }, plot);
+    const links = lab === "x_D";
+    txt(plot, sx(x) + (links ? -8 : 6), sy(x) + (links ? (sy(x) < M.t + 24 ? 18 : -10) : 16), `${lab} = ${+x.toPrecision(4)}`, "s-labr", links ? "end" : "start");
+  }
+  if (ev.xaz !== null && ev.xaz >= v.x0 && ev.xaz <= v.x1) {
+    el("circle", { cx: sx(ev.xaz), cy: sy(ev.xaz), r: 4, class: "s-pinch" }, plot);
+    txt(plot, sx(ev.xaz) + 8, sy(ev.xaz) + 14, "azeotroop", "s-labz");
+  }
+  // info linksboven
+  const info = el("g", {}, svg);
+  let regels = [];
+  if (r.nPlaten !== undefined && !r.fouten.length) {
+    regels.push(`${r.nPlaten} ${S.eta < 1 ? "werkelijke" : "ideale"} platen + reboiler`);
+    regels.push(r.voedingInReboiler ? "voeding in de reboiler" : `voeding op plaat ${r.voedingsplaat}`);
+  } else if (r.fouten.length) regels.push("specificaties niet haalbaar");
+  if (r.R > 0) regels.push(`R_D = ${f(r.R, 3)},  q = ${f(r.q, 3)}`);
+  regels.forEach((t, i) => txt(info, M.l + 10, M.t + 18 + i * 16, t, "s-lab"));
+
+  // legenda
+  const lg = [`<span class="l-ev">evenwichtslijn</span>`, `<span class="l-wl">werklijnen</span>`, `<span class="l-q">q-lijn</span>`];
+  if (r.eta < 1) lg.push(`<span class="l-ev l-ps">pseudo-evenwichtslijn (η<sub>M</sub>)</span>`);
+  if ($("#tRmin").checked) lg.push(`<span class="l-q" style="color:var(--zacht)">werklijn bij R<sub>D,min</sub> (○ = pinch)</span>`);
+  if ($("#tTot").checked) lg.push(`<span style="color:var(--groen)">totale reflux</span>`);
+  if (REF) lg.push(`<span class="l-ref" style="color:var(--ref)">referentie: ${REF.label}</span>`);
+  $("#legenda").innerHTML = lg.join("");
+}
+function fxPlain(v) { if (!isFinite(v)) return "–"; return Math.abs(v) < 0.001 ? v.toExponential(3) : v.toFixed(4); }
+
+// zoom
+function zoomNaar(soort) {
+  document.querySelectorAll("[data-zoom]").forEach((b) => b.classList.toggle("aan", b.dataset.zoom === soort));
+  const r = laatste;
+  if (soort === "vol" || !r || !r.trappen || !r.trappen.length) { VIEW = null; tekenMT(r); return; }
+  const tr = r.trappen, xD = r.inp.xD, xB = r.inp.xB;
+  let pts;
+  if (soort === "top") {
+    const k = Math.min(tr.length, 4);
+    pts = [[xD, xD]]; for (let i = 0; i < k; i++) pts.push([tr[i].x, tr[i].y]);
+  } else {
+    const k = Math.max(0, tr.length - 4);
+    pts = [[xB, xB]]; for (let i = k; i < tr.length; i++) { pts.push([tr[i].x, tr[i].y]); if (tr[i].yv !== null) pts.push([tr[i].x, tr[i].yv]); }
+  }
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  let x0 = Math.min(...xs, ...ys), x1 = Math.max(...xs, ...ys);
+  const pad = (x1 - x0) * 0.12 || 0.01;
+  x0 = Math.max(0, x0 - pad); x1 = Math.min(1, x1 + pad);
+  VIEW = { x0, x1, y0: x0, y1: x1 };
+  tekenMT(r);
+}
+
+function koppelZoom() {
+  const svg = $("#mt");
+  document.querySelectorAll("[data-zoom]").forEach((b) => b.addEventListener("click", () => zoomNaar(b.dataset.zoom)));
+  let start = null, rect = null;
+  const naarData = (e) => {
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const m = svg._map; if (!m) return null;
+    const x = m.v.x0 + (p.x - M.l) / m.pw * (m.v.x1 - m.v.x0);
+    const y = m.v.y0 + (M.t + m.ph - p.y) / m.ph * (m.v.y1 - m.v.y0);
+    return { px: p.x, py: p.y, x, y };
+  };
+  svg.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") return; const d = naarData(e); if (!d) return; start = d; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener("pointermove", (e) => {
+    const d = naarData(e); if (!d) return;
+    if (d.x >= svg._map.v.x0 && d.x <= svg._map.v.x1 && d.y >= svg._map.v.y0 && d.y <= svg._map.v.y1)
+      $("#leesuit").textContent = `x = ${fxPlain(d.x)},  y = ${fxPlain(d.y)}   ·   evenwicht bij deze x: y* = ${fxPlain(ev.y(Math.min(1, Math.max(0, d.x))))}`;
+    if (start) {
+      if (!rect) rect = el("rect", { class: "s-zoom" }, svg);
+      rect.setAttribute("x", Math.min(start.px, d.px)); rect.setAttribute("y", Math.min(start.py, d.py));
+      rect.setAttribute("width", Math.abs(d.px - start.px)); rect.setAttribute("height", Math.abs(d.py - start.py));
+    }
+  });
+  svg.addEventListener("pointerup", (e) => {
+    const d = naarData(e);
+    if (start && d && Math.abs(d.px - start.px) > 8 && Math.abs(d.py - start.py) > 8) {
+      VIEW = { x0: Math.max(0, Math.min(start.x, d.x)), x1: Math.min(1, Math.max(start.x, d.x)), y0: Math.max(0, Math.min(start.y, d.y)), y1: Math.min(1, Math.max(start.y, d.y)) };
+      document.querySelectorAll("[data-zoom]").forEach((b) => b.classList.remove("aan"));
+    }
+    start = null; if (rect) { rect.remove(); rect = null; }
+    tekenMT(laatste);
+  });
+  svg.addEventListener("dblclick", () => zoomNaar("vol"));
+  ["tQ", "tRmin", "tTot", "tNr"].forEach((id) => $("#" + id).addEventListener("change", () => tekenMT(laatste)));
+}
+
+// ---------------------------------------------------------------- tabel
+function tekenTabel(r) {
+  const m = [];
+  for (const t of r.fouten) m.push(`<div class="m-fout"><b>Niet haalbaar.</b> ${t}</div>`);
+  for (const t of r.waarsch) m.push(`<div class="m-waarsch">${t}</div>`);
+  for (const t of r.info) m.push(`<div class="m-info">${t}</div>`);
+  if (!r.fouten.length && r.nPlaten !== undefined) m.push(`<div class="m-ok">Haalbaar: <b>${r.nPlaten} ${S.eta < 1 ? "werkelijke" : "ideale"} platen + reboiler</b>, voeding op ${r.voedingInReboiler ? "de reboiler" : "plaat " + r.voedingsplaat}.</div>`);
+  $("#meldingen").innerHTML = m.join("");
+
+  const ref = REF ? REF.r : null;
+  const kol = (lab, key, d, eenh, nadruk) => {
+    const val = typeof key === "function" ? key(r) : r[key];
+    const rv = ref ? (typeof key === "function" ? key(ref) : ref[key]) : undefined;
+    const fmt = (x) => typeof x === "string" ? x : f(x, d);
+    return `<tr${nadruk ? ' class="nadruk"' : ""}><td>${lab}</td><td class="w">${fmt(val)}${eenh ? " " + eenh : ""}</td>${REF ? `<td class="r">${rv === undefined ? "–" : fmt(rv)}</td>` : ""}</tr>`;
+  };
+  const kop = (t) => `<table><thead><tr><th>${t}</th><th style="text-align:right">nu</th>${REF ? '<th style="text-align:right">ref.</th>' : ""}</tr></thead><tbody>`;
+  const ok = (x) => !x.fouten.length;
+  const t1 = kop("Debieten (kmol/h)") +
+    kol("voeding F", (x) => x.inp.F, 2) + kol("topproduct D", "D", 2, "", true) + kol("bodemproduct B", "B", 2, "", true) +
+    kol("L (rectificatie)", "L", 2) + kol("V (rectificatie)", "V", 2) +
+    kol('<span class="ov">L</span> (stripping)', "Lb", 2) + kol('<span class="ov">V</span> (stripping)', "Vb", 2) + "</tbody></table>";
+  const t2 = kop("Verhoudingen") +
+    kol("R<sub>D</sub> = L/D", "R", 3, "", true) + kol("R<sub>D,min</sub>", "Rmin", 3, "", true) +
+    kol("R<sub>D</sub>/R<sub>D,min</sub>", (x) => x.Rmin ? x.R / x.Rmin : NaN, 2) +
+    kol("L/V", "LV", 3) + kol('<span class="ov">L</span>/<span class="ov">V</span>', "LbVb", 3) +
+    kol("V<sub>B</sub> = <span class='ov'>V</span>/B", "VB", 3) + kol("V<sub>B,min</sub>", "VBmin", 3) +
+    kol("q", "q", 3) + "</tbody></table>";
+  const t3 = kop("Trappen") +
+    kol("N<sub>min</sub> (totale reflux)", (x) => x.Nmin !== undefined ? `${x.Nmin} (${x.Nmin - 1} + reb.)` : "–", 0, "", true) +
+    kol("N<sub>min</sub> fractioneel", "NminFrac", 2) +
+    (ev.ideaalAlpha ? kol("N<sub>min</sub> Fenske", "Fenske", 2) : "") +
+    kol(S.eta < 1 ? "werkelijke platen" : "ideale platen", (x) => ok(x) && x.nPlaten !== undefined ? String(x.nPlaten) + " + reboiler" : "–", 0, "", true) +
+    kol("voedingsplaat", (x) => ok(x) && x.voedingsplaat ? (x.voedingInReboiler ? "reboiler" : String(x.voedingsplaat)) : "–", 0, "", true) +
+    kol("fractie laatste trap", (x) => ok(x) ? x.fractieLaatste : NaN, 2) +
+    kol("η<sub>M</sub>", "eta", 2) + "</tbody></table>";
+  const t4 = kop("Energie en temperatuur") +
+    kol("Q̇<sub>C</sub> condensor", (x) => ok(x) ? x.QC : NaN, 0, "kW") + kol("Q̇<sub>R</sub> reboiler", (x) => ok(x) ? x.QR : NaN, 0, "kW", true) +
+    kol("Q̇<sub>R</sub>/D", (x) => ok(x) ? x.QR / x.D : NaN, 2, "kW·h/kmol") +
+    (ev.T ? kol("T top (kookpunt x<sub>D</sub>)", "Ttop", 1, "°C") + kol("T bodem (kookpunt x<sub>B</sub>)", "Tbodem", 1, "°C") + kol("kookpunt voeding", "Tvoeding", 1, "°C") : "") +
+    kol("y<sub>b</sub> (damp uit reboiler)", "yb", 4) + "</tbody></table>";
+  $("#tabellen").innerHTML = t1 + t2 + t3 + t4;
+  $("#tabellen").classList.toggle("metref", !!REF);
+
+  // plaat per plaat
+  const tr = r.trappen || [];
+  let h = `<table><thead><tr><th style="text-align:left">trap</th><th>x<sub>n</sub></th><th>y<sub>n</sub></th><th>y<sub>n+1</sub> (werklijn)</th><th>y*<sub>n</sub> (evenwicht)</th></tr></thead><tbody>`;
+  for (const t of tr) {
+    h += `<tr${t.n === r.voedingsplaat && !t.reb ? ' class="nadruk"' : ""}><td style="text-align:left">${t.reb ? "reboiler" : t.n}${t.n === r.voedingsplaat && !t.reb ? " (voeding)" : ""}</td><td>${fx(t.x)}</td><td>${fx(t.reb ? ev.y(t.x) : t.y)}</td><td>${t.yv === null ? "–" : fx(t.yv)}</td><td>${fx(ev.y(t.x))}</td></tr>`;
+  }
+  h += "</tbody></table>";
+  $("#platen").innerHTML = tr.length ? h : '<p class="klein">Geen trappen (specificaties niet haalbaar).</p>';
+}
+
+// ---------------------------------------------------------------- referentie, link, presets
+function zetReferentie() {
+  const r = laatste;
+  if (REF) { REF = null; $("#refKnop").textContent = "Referentie vastzetten"; $("#refKnop").classList.remove("aan"); update(); return; }
+  const evPts = []; for (let i = 0; i <= 600; i++) { const x = i / 600; evPts.push([x, ev.y(x)]); }
+  const wl = r.rect ? [[[r.xi, r.yi], [r.inp.xD, r.inp.xD]], [[r.inp.xB, r.inp.xB], [r.xi, r.yi]]] : null;
+  let trap = null;
+  if (r.trappen && r.trappen.length) {
+    trap = []; let xp = r.inp.xD;
+    for (const t of r.trappen) { trap.push([xp, t.y], [t.x, t.y]); trap.push([t.x, t.yv !== null ? t.yv : (r.strip ? r.strip(t.x) : t.x)]); xp = t.x; }
+  }
+  const lab = r.nPlaten !== undefined && !r.fouten.length ? `${r.nPlaten} platen, R_D = ${f(r.R, 2)}` : "niet haalbaar";
+  REF = { r, ev: evPts, evKey, wl, trap, label: lab.replace("R_D", "R<sub>D</sub>") };
+  $("#refKnop").textContent = "Referentie wissen"; $("#refKnop").classList.add("aan");
+  update();
+}
+
+const HASHVELDEN = ["sys", "alpha", "A12", "A21", "P", "F", "zF", "xD", "xB", "qMode", "q", "fV", "TF", "cpL", "cpV", "mode", "R", "Rfac", "VB", "eta", "vast", "voeding", "lam"];
+function schrijfHash() {
+  const p = new URLSearchParams();
+  for (const k of HASHVELDEN) if (S[k] !== STANDAARD[k]) p.set(k, typeof S[k] === "number" ? +S[k].toPrecision(6) : S[k]);
+  const h = p.toString();
+  try { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); } catch (e) { /* bv. sandbox */ }
+}
+function leesHash() {
+  const h = location.hash.slice(1); if (!h) return;
+  const p = new URLSearchParams(h);
+  for (const k of HASHVELDEN) if (p.has(k)) {
+    const v = p.get(k);
+    S[k] = typeof STANDAARD[k] === "number" ? parseFloat(v) : typeof STANDAARD[k] === "boolean" ? v === "true" : v;
+  }
+  if (!SYSTEMEN[S.sys]) S.sys = STANDAARD.sys;
+}
+
+function init() {
+  const ps = $("#preset");
+  ps.innerHTML = '<option value="">— voorbeeld of oefening —</option>' + PRESETS.map((p, i) => `<option value="${i}">${p.naam.replace("R_D", "R_D")}</option>`).join("");
+  ps.addEventListener("change", () => {
+    if (ps.value === "") return;
+    S = Object.assign({}, STANDAARD, PRESETS[+ps.value].s); VIEW = null;
+    document.querySelectorAll("[data-zoom]").forEach((b) => b.classList.toggle("aan", b.dataset.zoom === "vol"));
+    syncInvoer(); update(); ps.value = "";
+  });
+  $("#refKnop").addEventListener("click", zetReferentie);
+  $("#linkKnop").addEventListener("click", async () => {
+    schrijfHash();
+    const url = location.href;
+    try { await navigator.clipboard.writeText(url); $("#linkKnop").textContent = "Link gekopieerd ✓"; }
+    catch (e) { prompt("Kopieer deze link:", url); }
+    setTimeout(() => { $("#linkKnop").textContent = "Link kopiëren"; }, 1800);
+  });
+  leesHash();
+  bouwInvoer();
+  koppelZoom();
+  koppelReflux();
+  update();
+}
+init();
+
+</script>
+</body>
+</html>
