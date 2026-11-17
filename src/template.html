@@ -45,7 +45,9 @@ header h1 { font-size: 17px; margin: 0; font-weight: 650; }
 header .sub { color: var(--zacht); font-size: 12.5px; }
 header .acties { min-width: 0; max-width: 100%; margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 select, input[type=number], button { font: inherit; color: var(--tekst); }
-#preset { min-width: 0; flex: 1 1 160px; width: 0; }
+#laadVak { margin: 0 0 12px; padding: 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--rand); }
+#laadVak label { display: block; font-size: 12px; font-weight: 650; color: var(--zacht); margin-bottom: 4px; }
+#preset { width: 100%; }
 select { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
 button { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
 button:hover { border-color: var(--accent); }
@@ -209,12 +211,11 @@ svg .b-vlak { fill: var(--blauw); fill-opacity: .16; stroke: none; }
     <div class="sub">Binaire destillatie volgens McCabe-Thiele</div>
   </div>
   <div class="acties">
-    <label class="klein" for="preset">Laad:</label>
-    <select id="preset"></select>
     <button id="refKnop" title="Zet de huidige oplossing vast als grijze referentie om het effect van een wijziging te zien">Referentie vastzetten</button>
     <button id="linkKnop" title="Kopieer een link die deze instellingen bewaart">Link kopiëren</button>
   </div>
 </header>
+<div id="laadVak"><label for="preset">Voorbeeld of oefening laden</label><select id="preset"></select></div>
 <div class="kern" id="kern" aria-live="polite"></div>
 <div class="kern" id="bkern" aria-live="polite" hidden></div>
 <div class="kern" id="akern" aria-live="polite" hidden></div>

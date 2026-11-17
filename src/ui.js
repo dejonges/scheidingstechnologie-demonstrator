@@ -745,6 +745,8 @@ function zetModus(m) {
   $("#main-abs").hidden = m !== "abs"; $("#akern").hidden = m !== "abs";
   $(".sub").innerHTML = { batch: "Batchdestillatie: Rayleigh, constante reflux of constante topsamenstelling", abs: "Absorptie en strippen: evenwichtsplaten (Kremser, McCabe-Thiele) en gepakte kolom (N<sub>Oy</sub>, H<sub>Oy</sub>)" }[m] || "Binaire destillatie volgens McCabe-Thiele";
   vulPresets();
+  const aside = $({ batch: "#binvoer", abs: "#ainvoer" }[m] || "#invoer"), h2 = aside.querySelector("h2");
+  aside.insertBefore($("#laadVak"), h2 ? h2.nextSibling : aside.firstChild);
   zetRefKnop(m === "batch" ? !!BREF : m === "abs" ? !!AREF : !!REF);
   if (m === "batch") bUpdate(); else if (m === "abs") aUpdate(); else update();
 }
