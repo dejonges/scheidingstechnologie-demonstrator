@@ -1,8 +1,8 @@
-# Destillatie-demonstrator
+# Demonstrator Scheidingstechnologie
 
 Interactieve McCabe-Thiele-demonstrator voor binaire destillatie, gemaakt voor het vak Scheidingstechnologie (KU Leuven, FIIW).
 
-**Openen:** https://dejonges.github.io/destillatie-demonstrator/
+**Openen:** https://dejonges.github.io/scheidingstechnologie-demonstrator/
 
 Studenten variëren reflux, boilup, relatieve vluchtigheid, voedingsdebiet en -toestand en de gewenste zuiverheid, en zien live het effect op het kolomschema, het McCabe-Thiele-diagram, het T-x-y-diagram, het aantal platen en het energieverbruik. Ideale systemen (constante α) en niet-ideale systemen (Van Laar, UNIFAC, meetgegevens) zijn beschikbaar.
 
