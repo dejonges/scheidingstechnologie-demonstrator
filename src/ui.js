@@ -39,18 +39,19 @@ let REF = null, VIEW = null, laatste = null;
 // ---------------------------------------------------------------- invoerpaneel
 const VELDEN = {}; // id -> {rng, num, def}
 function maakVeld(parent, id, label, def) {
-  const rij = document.createElement("div"); rij.className = "rij" + (def.radio ? " radio" : ""); rij.id = "rij-" + id;
+  const st = () => def.st ? def.st() : S, upd = def.upd || update, reg = def.reg || VELDEN;
+  const rij = document.createElement("div"); rij.className = "rij" + (def.radio ? " radio" : ""); rij.id = "rij-" + (def.pref || "") + id;
   const lab = document.createElement("label");
   if (def.radio) {
     const r = document.createElement("input"); r.type = "radio"; r.name = def.radio; r.value = def.radioVal;
-    r.addEventListener("change", () => { S[def.radioKey] = def.radioVal; update(); });
+    r.addEventListener("change", () => { st()[def.radioKey] = def.radioVal; upd(); });
     lab.appendChild(r); def.radioEl = r;
     const sp = document.createElement("span"); sp.innerHTML = label; lab.appendChild(sp);
   } else lab.innerHTML = label;
-  lab.htmlFor = def.radio ? "" : "n-" + id;
+  lab.htmlFor = def.radio ? "" : "n-" + (def.pref || "") + id;
   const rng = document.createElement("input"); rng.type = "range"; rng.min = 0; rng.max = 1000; rng.step = 1;
   rng.setAttribute("aria-label", label.replace(/<[^>]+>/g, ""));
-  const num = document.createElement("input"); num.type = "text"; num.inputMode = "decimal"; num.id = "n-" + id; num.autocomplete = "off";
+  const num = document.createElement("input"); num.type = "text"; num.inputMode = "decimal"; num.id = "n-" + (def.pref || "") + id; num.autocomplete = "off";
   if (def.min !== undefined) num.min = def.min; if (def.max !== undefined) num.max = def.max;
   const wrap = document.createElement("span"); wrap.className = "numwrap";
   const pijlen = document.createElement("span"); pijlen.className = "pijlen";
@@ -62,14 +63,14 @@ function maakVeld(parent, id, label, def) {
   const vanS = (s) => def.log ? def.min * Math.pow(def.max / def.min, s / 1000) : def.min + (def.max - def.min) * s / 1000;
   const rond = (v) => def.rond ? def.rond(v) : v;
   rng.addEventListener("input", () => {
-    if (def.radio && S[def.radioKey] !== def.radioVal) { S[def.radioKey] = def.radioVal; }
-    S[id] = rond(vanS(+rng.value)); num.value = fmtIn(S[id], def); update(true);
+    if (def.radio && st()[def.radioKey] !== def.radioVal) { st()[def.radioKey] = def.radioVal; }
+    st()[id] = rond(vanS(+rng.value)); num.value = fmtIn(st()[id], def); upd(true);
   });
   num.addEventListener("change", () => {
     const v = parseFloat(String(num.value).replace(",", "."));
-    if (!isFinite(v)) { num.value = fmtIn(S[id], def); return; }
-    if (def.radio && S[def.radioKey] !== def.radioVal) { S[def.radioKey] = def.radioVal; }
-    S[id] = v; rng.value = Math.max(0, Math.min(1000, toS(v))); update();
+    if (!isFinite(v)) { num.value = fmtIn(st()[id], def); return; }
+    if (def.radio && st()[def.radioKey] !== def.radioVal) { st()[def.radioKey] = def.radioVal; }
+    st()[id] = v; rng.value = Math.max(0, Math.min(1000, toS(v))); upd();
   });
   // eigen stappen (pijltjes en pijltoetsen), werkt in elke browser
   const stapGrootte = (v, richting) => {
@@ -80,14 +81,14 @@ function maakVeld(parent, id, label, def) {
     return e;
   };
   const stap = (richting) => {
-    let v = S[id]; if (!isFinite(v)) v = def.min;
+    let v = st()[id]; if (!isFinite(v)) v = def.min;
     const d = stapGrootte(v, richting);
     let nv = Math.round((v + richting * d) / d) * d;
     nv = Math.min(def.max, Math.max(def.min, +nv.toPrecision(10)));
-    if (def.radio && S[def.radioKey] !== def.radioVal) S[def.radioKey] = def.radioVal;
-    S[id] = nv; num.value = fmtIn(nv, def); rng.value = Math.max(0, Math.min(1000, toS(nv)));
+    if (def.radio && st()[def.radioKey] !== def.radioVal) st()[def.radioKey] = def.radioVal;
+    st()[id] = nv; num.value = fmtIn(nv, def); rng.value = Math.max(0, Math.min(1000, toS(nv)));
     if (def.radio) def.radioEl.checked = true;
-    update();
+    upd();
   };
   bOp.addEventListener("click", () => stap(+1));
   bNeer.addEventListener("click", () => stap(-1));
@@ -95,7 +96,7 @@ function maakVeld(parent, id, label, def) {
     if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); stap(e.key === "ArrowUp" ? 1 : -1); }
   });
   num.addEventListener("wheel", (e) => { if (document.activeElement === num) e.preventDefault(); }, { passive: false });
-  VELDEN[id] = { rij, rng, num, def, toS, set(v) { num.value = fmtIn(v, def); rng.value = Math.max(0, Math.min(1000, toS(v))); } };
+  reg[id] = { rij, rng, num, def, toS, set(v) { num.value = fmtIn(v, def); rng.value = Math.max(0, Math.min(1000, toS(v))); } };
 }
 function fmtIn(v, def) {
   if (!isFinite(v)) return "";
@@ -618,6 +619,10 @@ function tekenTabel(r) {
 }
 
 // ---------------------------------------------------------------- referentie, link, presets
+function zetRefKnop(aan) {
+  $("#refKnop").textContent = aan ? "Referentie wissen" : "Referentie vastzetten";
+  $("#refKnop").classList.toggle("aan", aan);
+}
 function zetReferentie() {
   const r = laatste;
   if (REF) { REF = null; $("#refKnop").textContent = "Referentie vastzetten"; $("#refKnop").classList.remove("aan"); update(); return; }
@@ -635,7 +640,15 @@ function zetReferentie() {
 }
 
 const HASHVELDEN = ["sys", "alpha", "A12", "A21", "P", "F", "zF", "xD", "xB", "qMode", "q", "fV", "TF", "cpL", "cpV", "mode", "R", "Rfac", "VB", "eta", "vast", "voeding", "lamA", "lamB"];
+const BHASH = ["sys", "alpha", "A12", "A21", "P", "lamA", "lamB", "W0", "x0", "xBe", "bmode", "N", "R", "xDdoel", "Vdeb"];
 function schrijfHash() {
+  if (MODUS === "batch") {
+    const p = new URLSearchParams(); p.set("modus", "batch");
+    const std = SYSTEMEN[BS.sys].lambda;
+    for (const k of BHASH) if (BS[k] !== BSTD[k] && !(k === "lamA" && BS[k] === std[0]) && !(k === "lamB" && BS[k] === std[1])) p.set(k, typeof BS[k] === "number" ? +BS[k].toPrecision(6) : BS[k]);
+    try { history.replaceState(null, "", "#" + p.toString()); } catch (e) { /* bv. sandbox */ }
+    return;
+  }
   const p = new URLSearchParams();
   const std = SYSTEMEN[S.sys].lambda;
   for (const k of HASHVELDEN) if (S[k] !== STANDAARD[k] && !(k === "lamA" && S[k] === std[0]) && !(k === "lamB" && S[k] === std[1])) p.set(k, typeof S[k] === "number" ? +S[k].toPrecision(6) : S[k]);
@@ -645,6 +658,15 @@ function schrijfHash() {
 function leesHash() {
   const h = location.hash.slice(1); if (!h) return;
   const p = new URLSearchParams(h);
+  if (p.get("modus") === "batch") {
+    MODUS = "batch";
+    for (const k of BHASH) if (p.has(k)) { const v = p.get(k); BS[k] = typeof BSTD[k] === "number" ? parseFloat(v) : v; }
+    if (!SYSTEMEN[BS.sys]) BS.sys = BSTD.sys;
+    const sb = SYSTEMEN[BS.sys].lambda;
+    if (!p.has("lamA")) BS.lamA = sb[0];
+    if (!p.has("lamB")) BS.lamB = sb[1];
+    return;
+  }
   for (const k of HASHVELDEN) if (p.has(k)) {
     const v = p.get(k);
     S[k] = typeof STANDAARD[k] === "number" ? parseFloat(v) : typeof STANDAARD[k] === "boolean" ? v === "true" : v;
@@ -681,7 +703,7 @@ function tekenKern(r) {
   zetKernHoogte();
 }
 function zetKernHoogte() {
-  const h = $("#kern").getBoundingClientRect().height;
+  const h = $(MODUS === "batch" ? "#bkern" : "#kern").getBoundingClientRect().height;
   document.documentElement.style.setProperty("--kernH", h + "px");
 }
 function koppelTabs() {
@@ -698,16 +720,36 @@ function koppelTabs() {
 
 function zetLambdaStd() { const l = SYSTEMEN[S.sys].lambda; S.lamA = l[0]; S.lamB = l[1]; }
 
+let MODUS = "continu";
+function vulPresets() {
+  const lijst = MODUS === "batch" ? BPRESETS : PRESETS;
+  $("#preset").innerHTML = '<option value="">— voorbeeld of oefening —</option>' + lijst.map((p, i) => `<option value="${i}">${p.naam}</option>`).join("");
+}
+function zetModus(m) {
+  MODUS = m;
+  document.querySelectorAll("#modusTabs [data-modus]").forEach((b) => { b.classList.toggle("aan", b.dataset.modus === m); b.setAttribute("aria-pressed", b.dataset.modus === m); });
+  $("#main-continu").hidden = m !== "continu"; $("#kern").hidden = m !== "continu";
+  $("#main-batch").hidden = m !== "batch"; $("#bkern").hidden = m !== "batch";
+  $(".sub").textContent = m === "batch" ? "Batchdestillatie: Rayleigh, constante reflux of constante topsamenstelling · Scheidingstechnieken" : "Binaire destillatie volgens McCabe-Thiele · Scheidingstechnieken";
+  vulPresets();
+  zetRefKnop(m === "batch" ? !!BREF : !!REF);
+  if (m === "batch") bUpdate(); else update();
+}
 function init() {
   const ps = $("#preset");
-  ps.innerHTML = '<option value="">— voorbeeld of oefening —</option>' + PRESETS.map((p, i) => `<option value="${i}">${p.naam.replace("R_D", "R_D")}</option>`).join("");
   ps.addEventListener("change", () => {
     if (ps.value === "") return;
+    if (MODUS === "batch") {
+      BS = Object.assign({}, BSTD, BPRESETS[+ps.value].s);
+      if (!("lamA" in BPRESETS[+ps.value].s)) { const l = SYSTEMEN[BS.sys].lambda; BS.lamA = l[0]; BS.lamB = l[1]; }
+      bSync(); bUpdate(); ps.value = ""; return;
+    }
     S = Object.assign({}, STANDAARD, PRESETS[+ps.value].s); zetLambdaStd(); VIEW = null;
     document.querySelectorAll("[data-zoom]").forEach((b) => b.classList.toggle("aan", b.dataset.zoom === "vol"));
     syncInvoer(); update(); ps.value = "";
   });
-  $("#refKnop").addEventListener("click", zetReferentie);
+  document.querySelectorAll("#modusTabs [data-modus]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.modus !== MODUS) zetModus(b.dataset.modus); }));
+  $("#refKnop").addEventListener("click", () => (MODUS === "batch" ? bZetReferentie() : zetReferentie()));
   $("#linkKnop").addEventListener("click", async () => {
     schrijfHash();
     const url = location.href;
@@ -720,6 +762,9 @@ function init() {
   koppelZoom();
   koppelTabs();
   koppelReflux();
-  update();
+  bouwBatchInvoer();
+  koppelBatch();
+  const m = MODUS; MODUS = "continu"; update();
+  zetModus(m);
 }
 init();
