@@ -36,6 +36,8 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+#mt, #txy, #rfx { max-height: calc(100vh - var(--kernH, 56px) - 170px); min-height: 300px; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--tekst); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rand); background: var(--paneel); }
@@ -47,21 +49,42 @@ select { background: var(--veld); border: 1px solid var(--rand); border-radius: 
 button { background: var(--veld); border: 1px solid var(--rand); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
 button:hover { border-color: var(--accent); }
 button.aan { background: var(--accent); color: #fff; border-color: var(--accent); }
-main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns: 300px minmax(260px, 330px) minmax(380px, 1fr); grid-template-areas: "in kolom mt" "in extra extra" "in tabel tabel"; align-items: start; }
+main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns: 290px minmax(0, 1fr); align-items: start; }
+#werk { display: grid; gap: 12px; min-width: 0; }
 .paneel { background: var(--paneel); border: 1px solid var(--rand); border-radius: 10px; padding: 12px; min-width: 0; }
-#invoer { grid-area: in; }
-#kolomPaneel { grid-area: kolom; }
-#mtPaneel { grid-area: mt; }
-#tabelPaneel { grid-area: tabel; }
-#extraPaneel { grid-area: extra; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 20px; }
-#extraPaneel > div { min-width: 0; }
+#invoer { position: sticky; top: calc(var(--kernH, 56px) + 8px); max-height: calc(100vh - var(--kernH, 56px) - 16px); overflow: auto; overscroll-behavior: contain; }
+.kern { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: stretch; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--rand); }
+.kern .status { display: flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-weight: 650; font-size: 13px; border: 1px solid; }
+.kern .status.ok { background: var(--ok-bg); border-color: var(--ok-rand); }
+.kern .status.nok { background: var(--fout-bg); border-color: var(--fout-rand); }
+.kern .chip { display: flex; flex-direction: column; justify-content: center; padding: 2px 10px; border-radius: 8px; background: var(--paneel); border: 1px solid var(--rand); min-width: 62px; }
+.kern .chip .l { font-size: 11px; color: var(--zacht); line-height: 1.2; white-space: nowrap; }
+.kern .chip .v { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.25; white-space: nowrap; }
+.kern .chip .v small { font-size: 11px; font-weight: 500; color: var(--zacht); }
+.kern .chip .ref { font-size: 10.5px; color: var(--fijn); line-height: 1.1; }
+.kern .chip.warm .v { color: var(--oranje); }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--rand); margin: -2px 0 10px; }
+.tabs button { border: 0; border-bottom: 2.5px solid transparent; border-radius: 0; background: none; padding: 6px 10px; font-weight: 600; color: var(--zacht); }
+.tabs button.aan { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--tekst); }
+.modus { display: flex; gap: 4px; }
+.modus button.aan { background: var(--accent); color: #fff; border-color: var(--accent); }
+.diagramRij { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); gap: 14px; align-items: start; }
+.diagram { min-width: 0; }
+.kolomVak { min-width: 0; }
+.kolomVak svg { max-width: 360px; margin: 0 auto; }
+#tabelPaneel > details:first-child { margin-top: 0; }
 #rfx { cursor: pointer; }
-@media (max-width: 1150px) {
-  main { grid-template-columns: 300px 1fr; grid-template-areas: "in mt" "in kolom" "extra extra" "tabel tabel"; }
+@media (max-width: 1080px) {
+  main { grid-template-columns: 260px minmax(0, 1fr); }
+  .diagramRij { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
-  main { grid-template-columns: 1fr; grid-template-areas: "mt" "in" "kolom" "extra" "tabel"; padding: 10px 10px 20px; }
+  main { grid-template-columns: 1fr; padding: 10px 10px 20px; }
+  #werk { order: -1; }
+  #invoer { position: static; max-height: none; }
   header { padding: 10px; }
+  .kern { padding: 6px 10px; flex-wrap: nowrap; overflow-x: auto; }
 }
 h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--zacht); margin: 0 0 8px; font-weight: 650; }
 fieldset { border: 0; border-top: 1px solid var(--rand); margin: 10px 0 0; padding: 8px 0 0; }
@@ -167,6 +190,9 @@ summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     <h1>Destillatie-demonstrator</h1>
     <div class="sub">Binaire destillatie volgens McCabe-Thiele · Scheidingstechnieken</div>
   </div>
+  <nav class="modus" id="modusTabs" hidden aria-label="Soort destillatie">
+    <button class="aan" data-modus="continu">Continue kolom</button>
+  </nav>
   <div class="acties">
     <label class="klein" for="preset">Laad:</label>
     <select id="preset"></select>
@@ -174,47 +200,54 @@ summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     <button id="linkKnop" title="Kopieer een link die deze instellingen bewaart">Link kopiëren</button>
   </div>
 </header>
+<div class="kern" id="kern" aria-live="polite"></div>
 <main>
-  <section class="paneel" id="invoer" aria-label="Invoer"></section>
-  <section class="paneel" id="kolomPaneel" aria-label="Kolomschema">
-    <h2>Kolom</h2>
-    <svg id="kolom" viewBox="0 0 350 606" role="img" aria-label="Schema van de destillatiekolom"></svg>
-  </section>
-  <section class="paneel" id="mtPaneel" aria-label="McCabe-Thiele-diagram">
-    <h2>McCabe-Thiele-diagram</h2>
-    <div class="toolbar">
-      <div class="groep">
-        <button data-zoom="vol" class="aan">Volledig</button>
-        <button data-zoom="top">Zoom top</button>
-        <button data-zoom="bodem">Zoom bodem</button>
+  <aside class="paneel" id="invoer" aria-label="Invoer"></aside>
+  <div id="werk">
+    <section class="paneel" id="diagramPaneel" aria-label="Diagrammen">
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="mt" class="aan">McCabe-Thiele</button>
+        <button role="tab" data-tab="txy">T-x-y en plaattemperaturen</button>
+        <button role="tab" data-tab="rfx">Platen en energie vs reflux</button>
       </div>
-      <label><input type="checkbox" id="tQ" checked> q-lijn</label>
-      <label><input type="checkbox" id="tRmin" checked> R<sub>D,min</sub></label>
-      <label><input type="checkbox" id="tTot"> totale reflux (N<sub>min</sub>)</label>
-      <label><input type="checkbox" id="tNr" checked> nummers</label>
-    </div>
-    <svg id="mt" viewBox="0 0 640 600" role="img" aria-label="McCabe-Thiele-diagram"></svg>
-    <div id="leesuit">Sleep een rechthoek om in te zoomen; dubbelklik om terug te gaan.</div>
-    <div class="legenda" id="legenda"></div>
-  </section>
-  <section class="paneel" id="extraPaneel" aria-label="Extra diagrammen">
-    <div>
-      <h2>T-x-y-diagram en plaattemperaturen</h2>
-      <svg id="txy" viewBox="0 0 520 400" role="img" aria-label="T-x-y-diagram"></svg>
-      <div class="uitleg" id="txyUitleg"></div>
-    </div>
-    <div>
-      <h2>Platen en energie versus reflux</h2>
-      <svg id="rfx" viewBox="0 0 520 400" role="img" aria-label="Aantal platen en reboilervermogen als functie van de refluxverhouding"></svg>
-      <div class="uitleg" id="rfxUitleg"></div>
-    </div>
-  </section>
-  <section class="paneel" id="tabelPaneel" aria-label="Resultaten">
-    <h2>Resultaten</h2>
-    <div class="meldingen" id="meldingen"></div>
-    <div class="tabellen" id="tabellen"></div>
-    <details id="platenDetails"><summary>Plaat per plaat (samenstellingen)</summary><div class="platentabel" id="platen"></div></details>
-    <details class="probeer"><summary>Probeer dit (inzicht)</summary>
+      <div class="diagramRij">
+        <div class="diagram">
+          <div class="tabvak" id="tab-mt">
+            <div class="toolbar">
+              <div class="groep">
+                <button data-zoom="vol" class="aan">Volledig</button>
+                <button data-zoom="top">Zoom top</button>
+                <button data-zoom="bodem">Zoom bodem</button>
+              </div>
+              <label><input type="checkbox" id="tQ" checked> q-lijn</label>
+              <label><input type="checkbox" id="tRmin" checked> R<sub>D,min</sub></label>
+              <label><input type="checkbox" id="tTot"> totale reflux</label>
+              <label><input type="checkbox" id="tNr" checked> nummers</label>
+            </div>
+            <svg id="mt" viewBox="0 0 640 600" role="img" aria-label="McCabe-Thiele-diagram"></svg>
+            <div id="leesuit">Sleep een rechthoek om in te zoomen; dubbelklik om terug te gaan.</div>
+            <div class="legenda" id="legenda"></div>
+          </div>
+          <div class="tabvak" id="tab-txy" hidden>
+            <svg id="txy" viewBox="0 0 520 400" role="img" aria-label="T-x-y-diagram"></svg>
+            <div class="uitleg" id="txyUitleg"></div>
+          </div>
+          <div class="tabvak" id="tab-rfx" hidden>
+            <svg id="rfx" viewBox="0 0 520 400" role="img" aria-label="Aantal platen en reboilervermogen als functie van de refluxverhouding"></svg>
+            <div class="uitleg" id="rfxUitleg"></div>
+          </div>
+        </div>
+        <div class="kolomVak">
+          <h2>Kolom</h2>
+          <svg id="kolom" viewBox="0 0 350 606" role="img" aria-label="Schema van de destillatiekolom"></svg>
+        </div>
+      </div>
+      <div class="meldingen" id="meldingen"></div>
+    </section>
+    <section class="paneel" id="tabelPaneel" aria-label="Resultaten">
+      <details open><summary>Alle resultaten</summary><div class="tabellen" id="tabellen"></div></details>
+      <details id="platenDetails"><summary>Plaat per plaat (samenstellingen)</summary><div class="platentabel" id="platen"></div></details>
+      <details class="probeer"><summary>Probeer dit (inzicht)</summary>
       <ol>
         <li>Verlaag R<sub>D</sub> stap voor stap tot vlak boven R<sub>D,min</sub>. Hoe evolueert het aantal platen, en waar ontstaat de pinch? Wat gebeurt er met Q̇<sub>R</sub>?</li>
         <li>Zet een referentie vast en verander enkel q van 1 naar 0 (verzadigde damp). Welke sectie krijgt meer platen? Waarom stijgt R<sub>D,min</sub>?</li>
@@ -225,8 +258,9 @@ summary { cursor: pointer; font-weight: 600; font-size: 13px; }
         <li>Verlaag de Murphree-efficiëntie: de pseudo-evenwichtslijn schuift naar de werklijnen toe.</li>
       </ol>
     </details>
-    <div class="voet">Veronderstellingen: constante molaire overloop, totale condensor, reboiler = ideale evenwichtstrap, Murphree-dampefficiëntie op de platen, druk constant. Platen genummerd van boven naar beneden; de voedingsplaat is de trap die over het snijpunt van de werklijnen stapt. Warmtestromen met de verdampingswarmte van de stroom die van fase verandert (condensor: x<sub>D</sub>, reboiler: y<sub>b</sub> in evenwicht met x<sub>B</sub>).</div>
-  </section>
+      <div class="voet">Veronderstellingen: constante molaire overloop, totale condensor, reboiler = ideale evenwichtstrap, Murphree-dampefficiëntie op de platen, druk constant. Platen genummerd van boven naar beneden; de voedingsplaat is de trap die over het snijpunt van de werklijnen stapt. Warmtestromen met de verdampingswarmte van de stroom die van fase verandert (condensor: x<sub>D</sub>, reboiler: y<sub>b</sub> in evenwicht met x<sub>B</sub>).</div>
+    </section>
+  </div>
 </main>
 <script>
 /*CORE*/

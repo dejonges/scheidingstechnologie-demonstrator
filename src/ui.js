@@ -123,9 +123,13 @@ function bouwInvoer() {
   p.appendChild(fs);
 
   // voeding
-  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Voeding</legend>";
+  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Voeding en producten</legend>";
   maakVeld(fs, "F", "F (kmol/h)", { min: 1, max: 1000, log: true, rond: (v) => +v.toPrecision(3) });
   maakVeld(fs, "zF", "z<sub>F</sub>", { dstep: 0.01,  min: 0.01, max: 0.99, rond: (v) => +v.toFixed(3) });
+  maakVeld(fs, "xD", "x<sub>D</sub> (top)", { dstep: 0.005,  min: 0.5, max: 0.9999, rond: (v) => +v.toFixed(4) });
+  maakVeld(fs, "xB", "x<sub>B</sub> (bodem)", { min: 0.0001, max: 0.4, log: true, rond: (v) => +v.toPrecision(3) });
+  p.appendChild(fs);
+  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Toestand van de voeding</legend>";
   const k = document.createElement("div"); k.className = "keuze"; k.id = "qKeuze";
   k.innerHTML = '<span class="klein">toestand via:</span>' +
     '<label><input type="radio" name="qm" value="q"> q</label>' +
@@ -141,11 +145,6 @@ function bouwInvoer() {
   const qi = document.createElement("div"); qi.className = "uitleg"; qi.id = "qUitleg"; fs.appendChild(qi);
   p.appendChild(fs);
 
-  // producten
-  fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Gewenste zuiverheid</legend>";
-  maakVeld(fs, "xD", "x<sub>D</sub> (top)", { dstep: 0.005,  min: 0.5, max: 0.9999, rond: (v) => +v.toFixed(4) });
-  maakVeld(fs, "xB", "x<sub>B</sub> (bodem)", { min: 0.0001, max: 0.4, log: true, rond: (v) => +v.toPrecision(3) });
-  p.appendChild(fs);
 
   // reflux
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Reflux of boilup (kies er één)</legend>";
@@ -235,8 +234,9 @@ function update(snel) {
   tekenKolom(r);
   tekenMT(r);
   tekenTabel(r);
-  tekenTxy(r);
-  planRefluxGrafiek(r);
+  tekenKern(r);
+  if (actieveTab === "txy") tekenTxy(r);
+  if (actieveTab === "rfx") planRefluxGrafiek(r);
   if (!snel) schrijfHash();
 }
 
@@ -567,7 +567,7 @@ function tekenTabel(r) {
   for (const t of r.fouten) m.push(`<div class="m-fout"><b>Niet haalbaar.</b> ${t}</div>`);
   for (const t of r.waarsch) m.push(`<div class="m-waarsch">${t}</div>`);
   for (const t of r.info) m.push(`<div class="m-info">${t}</div>`);
-  if (!r.fouten.length && r.nPlaten !== undefined) m.push(`<div class="m-ok">Haalbaar: <b>${r.nPlaten} ${S.eta < 1 ? "werkelijke" : "ideale"} platen + reboiler</b>, voeding op ${r.voedingInReboiler ? "de reboiler" : "plaat " + r.voedingsplaat}.</div>`);
+  if (false) m.push(`<div class="m-ok">Haalbaar: <b>${r.nPlaten} ${S.eta < 1 ? "werkelijke" : "ideale"} platen + reboiler</b>, voeding op ${r.voedingInReboiler ? "de reboiler" : "plaat " + r.voedingsplaat}.</div>`);
   $("#meldingen").innerHTML = m.join("");
 
   const ref = REF ? REF.r : null;
@@ -655,6 +655,47 @@ function leesHash() {
   if (!p.has("lamB")) S.lamB = p.has("lam") ? parseFloat(p.get("lam")) : std[1];
 }
 
+// ---------------------------------------------------------------- kerncijfers en tabbladen
+let actieveTab = "mt";
+function tekenKern(r) {
+  const ok = !r.fouten.length && r.nPlaten !== undefined;
+  const ref = REF ? REF.r : null;
+  const refOk = ref && !ref.fouten.length && ref.nPlaten !== undefined;
+  const chip = (l, v, rv, cls) => `<div class="chip${cls ? " " + cls : ""}"><span class="l">${l}</span><span class="v">${v}</span>${REF ? `<span class="ref">ref. ${rv}</span>` : ""}</div>`;
+  const pl = (x, o) => o ? `${x.nPlaten} <small>+ reb.</small>` : "–";
+  const vp = (x, o) => o ? (x.voedingInReboiler ? "reboiler" : x.voedingsplaat) : "–";
+  const fac = (x) => x.Rmin > 0 && isFinite(x.R / x.Rmin) ? f(x.R / x.Rmin, 2) : "–";
+  const nm = (x) => x.Nmin !== undefined ? `${x.Nmin - 1} <small>+ reb.</small>` : "–";
+  const pls = ok ? (S.eta < 1 ? "werkelijke platen" : "ideale platen") : "platen";
+  $("#kern").innerHTML =
+    `<div class="status ${ok ? "ok" : "nok"}">${ok ? "Haalbaar" : "Niet haalbaar"}</div>` +
+    chip(pls, pl(r, ok), refOk ? ref.nPlaten : "–") +
+    chip("voedingsplaat", vp(r, ok), refOk ? vp(ref, true) : "–") +
+    chip("R<sub>D</sub>", f(r.R, 2), ref ? f(ref.R, 2) : "") +
+    chip("R<sub>D,min</sub>", f(r.Rmin, 2), ref ? f(ref.Rmin, 2) : "") +
+    chip("R<sub>D</sub>/R<sub>D,min</sub>", fac(r), ref ? fac(ref) : "") +
+    chip("N<sub>min</sub>", nm(r), ref ? (ref.Nmin !== undefined ? ref.Nmin - 1 : "–") : "") +
+    chip("D <small>kmol/h</small>", f(r.D, 1), ref ? f(ref.D, 1) : "") +
+    chip("B <small>kmol/h</small>", f(r.B, 1), ref ? f(ref.B, 1) : "") +
+    chip("Q̇<sub>R</sub> <small>kW</small>", ok ? f(r.QR, 0) : "–", refOk ? f(ref.QR, 0) : "–", "warm");
+  zetKernHoogte();
+}
+function zetKernHoogte() {
+  const h = $("#kern").getBoundingClientRect().height;
+  document.documentElement.style.setProperty("--kernH", h + "px");
+}
+function koppelTabs() {
+  document.querySelectorAll(".tabs [data-tab]").forEach((b) => b.addEventListener("click", () => {
+    actieveTab = b.dataset.tab;
+    document.querySelectorAll(".tabs [data-tab]").forEach((x) => { x.classList.toggle("aan", x === b); x.setAttribute("aria-selected", x === b); });
+    for (const t of ["mt", "txy", "rfx"]) $("#tab-" + t).hidden = t !== actieveTab;
+    if (actieveTab === "txy") tekenTxy(laatste);
+    if (actieveTab === "rfx") tekenReflux(laatste);
+    if (actieveTab === "mt") tekenMT(laatste);
+  }));
+  window.addEventListener("resize", zetKernHoogte);
+}
+
 function zetLambdaStd() { const l = SYSTEMEN[S.sys].lambda; S.lamA = l[0]; S.lamB = l[1]; }
 
 function init() {
@@ -677,6 +718,7 @@ function init() {
   leesHash();
   bouwInvoer();
   koppelZoom();
+  koppelTabs();
   koppelReflux();
   update();
 }
