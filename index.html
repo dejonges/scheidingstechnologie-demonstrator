@@ -1626,6 +1626,7 @@ function berekenAbs(p) {
   out.s = s;
   out.A = M.conc ? null : s / p.m;              // A = L/(mV)
   out.Sf = M.conc ? null : p.m / s;            // S = mV/L
+  if (!M.conc) { if (abs) out.Amin = out.smin / p.m; else out.Smin = p.m / out.smax; }   // A = (L/L_min)·A_min, S = (V/V_min)·S_min
   // pinchlocatie bij minimum
   out.pinch = (() => {
     const sm = abs ? out.smin : out.smax; let best = null, bd = Infinity;
@@ -1700,7 +1701,9 @@ function bouwAbsInvoer() {
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend id=\"aOntwerpLeg\">Vloeistofdebiet (kies er één)</legend>";
   veld(fs, "fac", "L/L<sub>min</sub>", { min: 1.0, max: 5, dstep: 0.05, rond: (v) => +v.toFixed(2), radio: "aspec", radioVal: "fac", radioKey: "spec" });
   veld(fs, "D", "L (kmol/h)", { min: 1, max: 20000, log: true, rond: (v) => +v.toPrecision(3), radio: "aspec", radioVal: "D", radioKey: "spec" });
+  const ou = document.createElement("div"); ou.className = "uitleg"; ou.id = "aOntwerpUitleg";
   veld(fs, "AS", "A = L/(mV)", { min: 0.3, max: 5, dstep: 0.05, rond: (v) => +v.toFixed(3), radio: "aspec", radioVal: "AS", radioKey: "spec" });
+  fs.appendChild(ou);
   p.appendChild(fs);
 
   fs = document.createElement("fieldset"); fs.id = "aPlatenFs"; fs.innerHTML = "<legend>Platen</legend>";
@@ -1749,7 +1752,25 @@ function aUpdate(snel) {
   if (aTab === "fac") aTekenFac(r);
   if (aTab === "int") aTekenInt(r);
   aTekenTabel(r);
+  aTekenOntwerpUitleg(r);
   if (!snel) schrijfHash();
+}
+
+function aTekenOntwerpUitleg(r) {
+  const abs = AS_.proces === "abs", u = $("#aOntwerpUitleg");
+  if (r.conc) { u.innerHTML = abs ? "Geconcentreerd: (L′/V′)<sub>min</sub> volgt uit de werklijn die de evenwichtslijn raakt in het X–Y-diagram; L = L′/(1 − x<sub>a</sub>)." : "Geconcentreerd: (V′/L′)<sub>min</sub> volgt uit de werklijn die de evenwichtslijn raakt in het X–Y-diagram."; return; }
+  const fm = (v) => f(v, 3);
+  if (abs) {
+    u.innerHTML = `Verband met A: bij L<sub>min</sub> raakt de werklijn het evenwicht onderaan (x<sub>b</sub>* = y<sub>b</sub>/m), dus (L/V)<sub>min</sub> = (y<sub>b</sub> − y<sub>a</sub>)/(y<sub>b</sub>/m − x<sub>a</sub>) en ` +
+      `A<sub>min</sub> = (y<sub>b</sub> − y<sub>a</sub>)/(y<sub>b</sub> − m·x<sub>a</sub>)` + (r.Amin !== undefined ? ` = ${fm(r.Amin)}` : "") +
+      `. Met zuiver oplosmiddel (x<sub>a</sub> = 0) is A<sub>min</sub> gelijk aan de geabsorbeerde fractie. Daaruit: <b>A = (L/L<sub>min</sub>)·A<sub>min</sub></b>` +
+      (r.Amin !== undefined && isFinite(r.fac) ? ` = ${f(r.fac, 2)} × ${fm(r.Amin)} = ${fm(r.fac * r.Amin)}.` : ".");
+  } else {
+    u.innerHTML = `Verband met S: bij V<sub>min</sub> raakt de werklijn het evenwicht bovenaan (y<sub>a</sub>* = m·x<sub>a</sub>), dus (L/V)<sub>max</sub> = (m·x<sub>a</sub> − y<sub>b</sub>)/(x<sub>a</sub> − x<sub>b</sub>) en ` +
+      `S<sub>min</sub> = (x<sub>a</sub> − x<sub>b</sub>)/(x<sub>a</sub> − y<sub>b</sub>/m)` + (r.Smin !== undefined ? ` = ${fm(r.Smin)}` : "") +
+      `. Met zuiver stripgas (y<sub>b</sub> = 0) is S<sub>min</sub> gelijk aan de gestripte fractie. Daaruit: <b>S = (V/V<sub>min</sub>)·S<sub>min</sub></b>` +
+      (r.Smin !== undefined && isFinite(r.fac) ? ` = ${f(r.fac, 2)} × ${fm(r.Smin)} = ${fm(r.fac * r.Smin)}.` : ".");
+  }
 }
 
 // ---------------------------------------------------------------- kerncijfers en meldingen
@@ -1977,8 +1998,9 @@ function aTekenTabel(r) {
   const t2 = kop("Samenstellingen") + kol("y<sub>b</sub> (gas in)", (x) => x.yb, 5) + kol("y<sub>a</sub> (gas uit)", (x) => x.ya, 5) +
     kol("x<sub>a</sub> (vloeistof in)", (x) => x.xa, 5) + kol("x<sub>b</sub> (vloeistof uit)", (x) => x.xb, 5) +
     kol(abs ? "geabsorbeerd" : "gestript", (x) => 100 * x.p.eta, 2, "%") + "</tbody></table>";
-  let t3 = kop("Verhoudingen") + kol(r.conc ? "L′/V′" : "L/V", (x) => x.s, 4) + kol(r.conc ? "(L′/V′)<sub>min</sub>" : "(L/V)<sub>min</sub>", (x) => abs ? x.smin : x.smax, 4);
-  if (!r.conc) t3 += kol("A = L/(mV)", (x) => x.A, 4) + kol("S = mV/L", (x) => x.Sf, 4);
+  let t3 = kop("Verhoudingen") + kol(r.conc ? "L′/V′" : "L/V", (x) => x.s, 4) + kol((r.conc ? "(L′/V′)" : "(L/V)") + (abs ? "<sub>min</sub>" : "<sub>max</sub> (bij V<sub>min</sub>)"), (x) => abs ? x.smin : x.smax, 4);
+  if (!r.conc && abs) t3 += kol("absorptiefactor A = L/(mV)", (x) => x.A, 4) + kol("A<sub>min</sub> = (L/V)<sub>min</sub>/m", (x) => x.Amin, 4) + kol("A/A<sub>min</sub> = L/L<sub>min</sub>", (x) => x.A / x.Amin, 3);
+  if (!r.conc && !abs) t3 += kol("stripfactor S = mV/L", (x) => x.Sf, 4) + kol("S<sub>min</sub> = m·(V/L)<sub>min</sub>", (x) => x.Smin, 4) + kol("S/S<sub>min</sub> = V/V<sub>min</sub>", (x) => x.Sf / x.Smin, 3);
   t3 += "</tbody></table>";
   let t4;
   if (AS_.type === "platen") {
