@@ -434,7 +434,7 @@ function tekenMT(r) {
     const Rm = r.Rmin, b = xD / (Rm + 1);
     const pin = r.pinch;
     polyline(plot, [P(0, b), P(xD, xD)], "s-wlmin");
-    el("circle", { cx: sx(pin.x), cy: sy(pin.y), r: 4.5, class: "s-pinch" }, plot);
+    if (pin.sectie !== "V0") el("circle", { cx: sx(pin.x), cy: sy(pin.y), r: 4.5, class: "s-pinch" }, plot);
     if (v.x0 <= 0.001) {
       el("circle", { cx: sx(0), cy: sy(b), r: 3.5, class: "s-pinch" }, plot);
       txt(plot, sx(0) + 8, sy(b) - 8, `x_D/(R_{D,min}+1) = ${f(b, 3)}`, "s-labz");

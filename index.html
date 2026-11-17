@@ -549,25 +549,53 @@ function bereken(ev, inp) {
   out.pinchQ = { x: xp, y: yp };
 
   if (!out.azeoBlok) {
-    // minimale reflux: rectificatie (incl. raakpunt) en stripping (incl. raakpunt)
-    let LVr = (xD - yp) / (xD - xp), tang = null;
-    const n = 1500;
-    for (let i = 0; i < n; i++) {
-      const x = xp + (xD - xp) * i / n; if (xD - x < 1e-9) break;
-      const v = (xD - ev.y(x)) / (xD - x);
-      if (v > LVr + 1e-9) { LVr = v; tang = { x, y: ev.y(x), sectie: "rectificatie" }; }
+    // minimale reflux: kleinste R_D waarbij beide werklijnen overal tussen x_B en x_D onder de
+    // evenwichtslijn blijven. Dekt het snijpunt met de q-lijn, raakpunten in beide secties en het
+    // geval waarin de q-lijn de evenwichtslijn pas onder x_B snijdt (bv. sterk oververhitte damp).
+    const ts = [];
+    for (let i = 0; i <= 600; i++) ts.push(i / 600);
+    for (let e = -6; e < -2; e += 0.1) { ts.push(Math.pow(10, e)); ts.push(1 - Math.pow(10, e)); }
+    const xs = ts.map((t) => xB + (xD - xB) * t).sort((u, v) => u - v);
+    const eqs = xs.map((x) => ev.y(x));
+    const marge = (R) => {
+      const L = R * D, V = L + D, Lb = L + q * F, Vb = V - (1 - q) * F;
+      if (Vb <= 1e-12) return { min: -Infinity };
+      const a1 = R / (R + 1), b1 = xD / (R + 1), a2 = Lb / Vb, b2 = -B * xB / Vb;
+      const xi = Math.abs(a2 - a1) < 1e-14 ? zF : (b1 - b2) / (a2 - a1);
+      let min = Infinity, xm = null;
+      if (xi > xB && xi < xD) { min = ev.y(xi) - (a1 * xi + b1); xm = xi; }
+      for (let i = 0; i < xs.length; i++) {
+        const x = xs[i]; if (x <= xB || x >= xD) continue;
+        const op = x >= xi ? a1 * x + b1 : a2 * x + b2;
+        const m = eqs[i] - op;
+        if (m < min) { min = m; xm = x; }
+      }
+      return { min, xm, xi };
+    };
+    let Rmin, pinch;
+    if (inp.RminBekend) { Rmin = inp.RminBekend.Rmin; pinch = inp.RminBekend.pinch; }
+    else {
+      const ok = (R) => marge(R).min > 0;
+      if (ok(1e-9)) { Rmin = 0; pinch = null; }
+      else {
+        let lo = 1e-9, hi = 1;
+        while (!ok(hi) && hi < 1e6) { lo = hi; hi *= 2; }
+        if (!ok(hi)) { Rmin = Infinity; pinch = null; }
+        else {
+          for (let k = 0; k < 60; k++) { const mid = 0.5 * (lo + hi); if (ok(mid)) hi = mid; else lo = mid; }
+          Rmin = hi;
+          const m = marge(hi);
+          const v0 = marge(lo).min === -Infinity;
+          if (v0) {
+            out.info.push("R<sub>D,min</sub> wordt hier niet bepaald door een pinch, maar door <span class='ov'>V</span> = 0: bij kleinere reflux levert de (oververhitte) dampvoeding al meer damp dan de rectificatiesectie nodig heeft, en de reboiler zou negatief moeten werken.");
+          }
+          const sectie = Math.abs(m.xm - m.xi) < 0.01 * (xD - xB) ? "q-lijn" : (m.xm > m.xi ? "rectificatie" : "stripping");
+          pinch = v0 ? { x: m.xi, y: xD + (m.xi - xD) * Rmin / (Rmin + 1), sectie: "V0" } : { x: m.xm, y: ev.y(m.xm), sectie };
+          if (m.xi < xB) out.info.push("Het snijpunt van de q-lijn met de werklijnen ligt hier onder x<sub>B</sub>: de voeding hoort op de bodem (in de reboiler) en de strippingsectie valt weg.");
+        }
+      }
     }
-    let sS = (yp - xB) / (xp - xB), tangS = null;
-    for (let i = 1; i <= n; i++) {
-      const x = xB + (xp - xB) * i / n;
-      const v = (ev.y(x) - xB) / (x - xB);
-      if (v < sS - 1e-9) { sS = v; tangS = { x, y: ev.y(x), sectie: "stripping" }; }
-    }
-    const Rr = LVr / (1 - LVr);
-    const VbS = sS > 1 ? B / (sS - 1) : Infinity;
-    const RsVia = (VbS + (1 - q) * F) / D - 1;
-    let Rmin = Rr, pinch = tang || { x: xp, y: yp, sectie: "q-lijn" };
-    if (tangS && RsVia > Rr + 1e-9) { Rmin = RsVia; pinch = tangS; }
+    if (!pinch) pinch = { x: xp, y: yp, sectie: "q-lijn" };
     out.Rmin = Math.max(0, Rmin); out.pinch = pinch;
     out.LVmin = out.Rmin / (out.Rmin + 1);
     out.VBmin = ((out.Rmin + 1) * D - (1 - q) * F) / B;
@@ -666,7 +694,7 @@ function bereken(ev, inp) {
   if (vast && reb && vast > out.nPlaten) out.waarsch.push(`Voedingsplaat ${vast} ligt onder de laatste plaat: de voeding komt in de reboiler.`);
   if (vast && feed && !out.vast) {
     // vergelijk met optimale voedingsplaat
-    const opt = bereken(ev, Object.assign({}, inp, { voeding: 0, mode: "R", R }));
+    const opt = bereken(ev, Object.assign({}, inp, { voeding: 0, mode: "R", R, RminBekend: { Rmin: out.Rmin, pinch: out.pinch } }));
     if (opt.nPlaten !== undefined && opt.nPlaten < out.nPlaten)
       out.waarsch.push(`Niet-optimale voedingsplaat: met voeding op plaat ${opt.voedingsplaat} volstaan ${opt.nPlaten} platen + reboiler (nu ${out.nPlaten}).`);
     out.optimaal = opt;
@@ -677,7 +705,7 @@ function bereken(ev, inp) {
     else if (r < 1.1) out.waarsch.push(`R<sub>D</sub>/R<sub>D,min</sub> = ${r.toFixed(2)}: zeer dicht bij minimale reflux, dus erg veel platen.`);
     else if (r > 3) out.waarsch.push(`R<sub>D</sub>/R<sub>D,min</sub> = ${r.toFixed(2)}: weinig platen, maar een hoog energieverbruik (gebruikelijk is 1.2 à 1.5).`);
   }
-  if (out.pinch && out.pinch.sectie !== "q-lijn") out.info.push(`Minimale reflux bepaald door een raakpunt aan de evenwichtslijn in de ${out.pinch.sectie}sectie (x = ${out.pinch.x.toFixed(3)}), niet door het snijpunt met de q-lijn.`);
+  if (out.pinch && (out.pinch.sectie === "rectificatie" || out.pinch.sectie === "stripping")) out.info.push(`Minimale reflux bepaald door een raakpunt aan de evenwichtslijn in de ${out.pinch.sectie}sectie (x = ${out.pinch.x.toFixed(3)}), niet door het snijpunt met de q-lijn.`);
 
   // warmtestromen: λ van de stroom die van fase verandert
   const lam = inp.lambda || ev.s.lambda;
@@ -805,7 +833,7 @@ function tekenReflux(r) {
   const nP = 46;
   for (let i = 0; i <= nP; i++) {
     const fac = 1.03 * Math.pow(fmax / 1.03, i / nP), R = Rm * fac;
-    const o = bereken(ev, Object.assign({}, r.inp, { mode: "R", R, voeding: 0 }));
+    const o = bereken(ev, Object.assign({}, r.inp, { mode: "R", R, voeding: 0, RminBekend: { Rmin: r.Rmin, pinch: r.pinch } }));
     if (o.fouten.length || o.nPlaten === undefined) continue;
     pts.push({ R, N: o.nPlaten, QR: o.QR, QC: o.QC });
   }
@@ -1300,7 +1328,7 @@ function tekenMT(r) {
     const Rm = r.Rmin, b = xD / (Rm + 1);
     const pin = r.pinch;
     polyline(plot, [P(0, b), P(xD, xD)], "s-wlmin");
-    el("circle", { cx: sx(pin.x), cy: sy(pin.y), r: 4.5, class: "s-pinch" }, plot);
+    if (pin.sectie !== "V0") el("circle", { cx: sx(pin.x), cy: sy(pin.y), r: 4.5, class: "s-pinch" }, plot);
     if (v.x0 <= 0.001) {
       el("circle", { cx: sx(0), cy: sy(b), r: 3.5, class: "s-pinch" }, plot);
       txt(plot, sx(0) + 8, sy(b) - 8, `x_D/(R_{D,min}+1) = ${f(b, 3)}`, "s-labz");

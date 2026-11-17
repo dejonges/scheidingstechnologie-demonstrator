@@ -105,7 +105,7 @@ function tekenReflux(r) {
   const nP = 46;
   for (let i = 0; i <= nP; i++) {
     const fac = 1.03 * Math.pow(fmax / 1.03, i / nP), R = Rm * fac;
-    const o = bereken(ev, Object.assign({}, r.inp, { mode: "R", R, voeding: 0 }));
+    const o = bereken(ev, Object.assign({}, r.inp, { mode: "R", R, voeding: 0, RminBekend: { Rmin: r.Rmin, pinch: r.pinch } }));
     if (o.fouten.length || o.nPlaten === undefined) continue;
     pts.push({ R, N: o.nPlaten, QR: o.QR, QC: o.QC });
   }
