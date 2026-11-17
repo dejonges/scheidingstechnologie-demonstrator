@@ -41,7 +41,8 @@ function tekenTxy(r) {
   for (let i = 0; i <= n; i++) { const x = i / n, T = evT.T(x); kook.push([x, T]); dauw.push([evT.y(x), T]); }
   let Tmin = Math.min(...kook.map((p) => p[1])), Tmax = Math.max(...kook.map((p) => p[1]));
   const pad = (Tmax - Tmin) * 0.08 + 0.5; Tmin -= pad; Tmax += pad;
-  if (S.qMode === "T") { Tmin = Math.min(Tmin, S.TF - 2); Tmax = Math.max(Tmax, S.TF + 2); }
+  const vT = voedingT(evT, r.inp.zF, r.q);
+  if (vT) { Tmin = Math.min(Tmin, vT.TF - 2); Tmax = Math.max(Tmax, vT.TF + 2); }
   const A = assenKader(svg, W, H, Mg, [0, 1], [Tmin, Tmax], `x, y  (molfractie ${s.c1})`, "T  (°C)", { gx: 0.1 });
   const P = (x, T) => [A.sx(x), A.sy(T)];
   polyline(svg, kook.map((p) => P(p[0], p[1])), "s-ev");
@@ -72,18 +73,45 @@ function tekenTxy(r) {
   }
   const Tb = evT.T(zF), Td = evT.Tdauw(zF);
   polyline(svg, [P(zF, Tmin), P(zF, Tmax)], "s-q");
-  txt(svg, A.sx(zF) + 5, A.sy(Tmax) + 14, "z_F", "s-lab");
-  if (S.qMode === "T") {
-    el("circle", { cx: A.sx(zF), cy: A.sy(S.TF), r: 5, class: "m-paars" }, svg);
-    txt(svg, A.sx(zF) + 8, A.sy(S.TF) + 4, `voeding T_F = ${f(S.TF, 1)} °C`, "s-lab");
+  txt(svg, A.sx(zF) + 5, A.sy(Tmin) - 6, "z_F", "s-lab");
+  if (vT) {
+    if (vT.xl !== undefined) {   // tweefasige voeding: verbindingslijn vloeistof - damp
+      polyline(svg, [P(vT.xl, vT.TF), P(vT.yv, vT.TF)], "s-voedlijn");
+      el("circle", { cx: A.sx(vT.xl), cy: A.sy(vT.TF), r: 3.5, class: "m-blauw" }, svg);
+      el("circle", { cx: A.sx(vT.yv), cy: A.sy(vT.TF), r: 3.5, class: "m-rood" }, svg);
+    }
+    el("circle", { cx: A.sx(zF), cy: A.sy(vT.TF), r: 5.5, class: "m-paars" }, svg);
+    const rechts = zF < 0.6;
+    txt(svg, A.sx(zF) + (rechts ? 9 : -9), A.sy(vT.TF) + (vT.xl !== undefined ? -9 : 4), `voeding: T_F = ${f(vT.TF, 1)} °C`, "s-labv", rechts ? "start" : "end");
   }
   if (ev.xaz !== null) {
     el("circle", { cx: A.sx(ev.xaz), cy: A.sy(evT.T(ev.xaz)), r: 4, class: "s-pinch" }, svg);
     txt(svg, A.sx(ev.xaz), A.sy(evT.T(ev.xaz)) + 18, "azeotroop", "s-labz", "middle");
   }
-  $("#txyUitleg").innerHTML = `Bij ${f(S.sys.endsWith("data") ? 101.325 : S.P, 1)} kPa. Voeding: kookpunt ${f(Tb, 1)} °C, dauwpunt ${f(Td, 1)} °C.` +
+  const tfTxt = vT ? ` Voedingstemperatuur T<sub>F</sub> = ${f(vT.TF, 1)} °C` + (S.qMode === "T" ? " (invoer)." :
+    (vT.xl !== undefined ? ` (uit q = ${f(r.q, 3)}: vloeistof x = ${f(vT.xl, 3)} en damp y = ${f(vT.yv, 3)} in evenwicht).` :
+      ` (teruggerekend uit q = ${f(r.q, 3)} met c<sub>p,${r.q > 1 ? "L" : "V"}</sub> = ${r.q > 1 ? S.cpL : S.cpV} kJ/(kmol·K) en λ<sub>F</sub> = ${f(S.zF * S.lamA + (1 - S.zF) * S.lamB, 2)} kJ/mol).`)) : "";
+  $("#txyUitleg").innerHTML = `Bij ${f(S.sys.endsWith("data") ? 101.325 : S.P, 1)} kPa. Voeding: kookpunt ${f(Tb, 1)} °C, dauwpunt ${f(Td, 1)} °C.` + tfTxt +
     (tr.length && !r.fouten.length ? ` Blauwe punten: vloeistof op elke plaat (T op de kooklijn); de temperatuur stijgt van top (${f(r.Ttop, 1)} °C) naar bodem (${f(r.Tbodem, 1)} °C).` : "") +
     (ev.tModel ? " Temperaturen uit het UNIFAC-model, de xy-curve uit de meetgegevens." : "");
+}
+
+// voedingstemperatuur uit q (of rechtstreeks T_F in de modus "temperatuur")
+function voedingT(evT, zF, q) {
+  if (!evT.T || !isFinite(q)) return null;
+  const Tb = evT.T(zF), Td = evT.Tdauw(zF);
+  const lamF = zF * S.lamA + (1 - zF) * S.lamB;
+  let TF;
+  if (S.qMode === "T") TF = S.TF;
+  else if (q >= 1) TF = Tb - (q - 1) * lamF * 1000 / S.cpL;
+  else if (q <= 0) TF = Td - q * lamF * 1000 / S.cpV;
+  else TF = bisect((T) => {          // vloeistoffractie (y − z)/(y − x) = q bij T tussen kook- en dauwpunt
+    const x = bisect((t) => evT.T(t) - T, 0, 1, 50), y = evT.y(x);
+    return (y - zF) / (y - x) - q;
+  }, Tb, Td, 50);
+  const out = { TF, Tb, Td };
+  if (TF > Tb + 1e-6 && TF < Td - 1e-6) { const x = bisect((t) => evT.T(t) - TF, 0, 1, 50); out.xl = x; out.yv = evT.y(x); }
+  return out;
 }
 
 // ---------------------------------------------------------------- platen en energie versus reflux
