@@ -730,7 +730,7 @@ function zetModus(m) {
   document.querySelectorAll("#modusTabs [data-modus]").forEach((b) => { b.classList.toggle("aan", b.dataset.modus === m); b.setAttribute("aria-pressed", b.dataset.modus === m); });
   $("#main-continu").hidden = m !== "continu"; $("#kern").hidden = m !== "continu";
   $("#main-batch").hidden = m !== "batch"; $("#bkern").hidden = m !== "batch";
-  $(".sub").textContent = m === "batch" ? "Batchdestillatie: Rayleigh, constante reflux of constante topsamenstelling · Scheidingstechnieken" : "Binaire destillatie volgens McCabe-Thiele · Scheidingstechnieken";
+  $(".sub").textContent = m === "batch" ? "Batchdestillatie: Rayleigh, constante reflux of constante topsamenstelling · Scheidingstechnologie" : "Binaire destillatie volgens McCabe-Thiele · Scheidingstechnologie";
   vulPresets();
   zetRefKnop(m === "batch" ? !!BREF : !!REF);
   if (m === "batch") bUpdate(); else update();

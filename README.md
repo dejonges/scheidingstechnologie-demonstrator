@@ -1,6 +1,6 @@
 # Destillatie-demonstrator
 
-Interactieve McCabe-Thiele-demonstrator voor binaire destillatie, gemaakt voor het vak Scheidingstechnieken (KU Leuven, FIIW).
+Interactieve McCabe-Thiele-demonstrator voor binaire destillatie, gemaakt voor het vak Scheidingstechnologie (KU Leuven, FIIW).
 
 **Openen:** https://dejonges.github.io/destillatie-demonstrator/
 
