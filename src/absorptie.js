@@ -7,7 +7,7 @@
 // Platen genummerd van boven naar beneden; Murphree-gasefficiëntie via pseudo-evenwichtslijn.
 // =====================================================================
 const ASTD = {
-  proces: "abs", conc: "verdund", type: "platen", m: 2,
+  proces: "abs", conc: "verdund", type: "platen", m: 2, ev: "lin", k: 2.5,
   G: 100, xa: 0, yb: 0.02, eta: 0.95,
   spec: "fac", fac: 1.5, D: 300, AS: 1.4, etaM: 1,
   hmode: "H", HOy: 0.6, Kya: 150, Sd: 1.0,
@@ -21,6 +21,8 @@ const APRESETS = [
   { naam: "Murphree-efficiëntie 60%: werkelijke platen", s: { etaM: 0.6 } },
   { naam: "Gepakte kolom, verdund: N_Oy = (y_b − y_a)/Δy_LM", s: { type: "gepakt" } },
   { naam: "Gepakte kolom, geconcentreerd gas: gekromde werklijn", s: { type: "gepakt", conc: "conc", m: 1.2, yb: 0.30, eta: 0.9, fac: 1.4 } },
+  { naam: "Gekromd evenwicht y* = 0.3x + 2.5x² (zoals de samenvattingsfiguur N_Oy)", s: { type: "gepakt", conc: "conc", ev: "krom", m: 0.3, k: 2.5, yb: 0.5, xa: 0, eta: 0.958333, spec: "D", D: 90 } },
+  { naam: "Gekromd evenwicht (holle lijn): pinch midden in de kolom", s: { ev: "krom", m: 2, k: -3, yb: 0.2, eta: 0.95, fac: 1.3 } },
   { naam: "Strippen in een gepakte kolom", s: { type: "gepakt", proces: "strip", m: 3, xa: 0.01, yb: 0, eta: 0.95, spec: "AS", AS: 1.6 } },
 ];
 let AS_ = Object.assign({}, ASTD), AREF = null, aLaatste = null, aTab = "mt";
@@ -28,14 +30,17 @@ const AVELDEN = {};
 
 // ---------------------------------------------------------------- rekenkern
 function aModel(p) {
-  const conc = p.conc === "conc", m = p.m;
+  const conc = p.conc === "conc", m = p.m, k = p.ev === "krom" ? p.k : 0;
+  const yeq = (x) => m * x + k * x * x;                                  // evenwicht in molfracties
+  const xeq = (y) => { if (k === 0) return y / m; const D = m * m + 4 * k * y; return D < 0 ? Infinity : 2 * y / (m + Math.sqrt(D)); };
+  const lin = !conc && k === 0;
   const U = conc ? (x) => x / (1 - x) : (x) => x;        // vloeistof: x of X
   const W = conc ? (y) => y / (1 - y) : (y) => y;        // gas: y of Y
   const ux = conc ? (u) => u / (1 + u) : (u) => u;
   const wy = conc ? (w) => w / (1 + w) : (w) => w;
-  const eqW = (u) => { const y = m * ux(u); return y >= 1 ? Infinity : W(y); };
-  const eqU = (w) => { const x = wy(w) / m; return x >= 1 ? Infinity : U(x); };
-  return { conc, m, U, W, ux, wy, eqW, eqU };
+  const eqW = (u) => { const y = yeq(ux(u)); return y >= 1 ? Infinity : W(y); };
+  const eqU = (w) => { const x = xeq(wy(w)); return x >= 1 ? Infinity : U(x); };
+  return { conc, m, k, lin, yeq, xeq, U, W, ux, wy, eqW, eqU };
 }
 
 function aTrappen(M, r, etaM) {
@@ -68,7 +73,7 @@ function aOverdracht(M, r) {
   for (let i = 0; i <= n; i++) {
     const w = r.wa + (r.wb - r.wa) * i / n;           // van top naar bodem
     const u = r.ua + (w - r.wa) / r.s;
-    const x = M.ux(u), y = M.wy(w), ys = M.m * x, xs = y / M.m;
+    const x = M.ux(u), y = M.wy(w), ys = M.yeq(x), xs = M.xeq(y);
     pts.push({ x, y, ys, xs, dy: abs ? y - ys : ys - y, dx: abs ? xs - x : x - xs });
   }
   if (pts.some((p) => !(p.dy > 0) || !(p.dx > 0))) return null;
@@ -76,7 +81,7 @@ function aOverdracht(M, r) {
   const NOy = simpson(pts.map((p) => 1 / p.dy), pts.map((p) => p.y));
   const NOx = simpson(pts.map((p) => 1 / p.dx), pts.map((p) => p.x));
   let NOyLM = null, dyLM = null;
-  if (!M.conc) {
+  if (M.lin) {
     const da = pts[0].dy, db = pts[n].dy;
     dyLM = Math.abs(db - da) < 1e-12 * da ? da : (db - da) / Math.log(db / da);
     NOyLM = Math.abs(r.yb - r.ya) / dyLM;
@@ -87,7 +92,7 @@ function aOverdracht(M, r) {
 function berekenAbs(p) {
   const M = aModel(p);
   const abs = p.proces === "abs";
-  const out = { p, proces: p.proces, conc: M.conc, fouten: [], waarsch: [], info: [] };
+  const out = { p, proces: p.proces, conc: M.conc, lin: M.lin, fouten: [], waarsch: [], info: [] };
   const fout = (t) => { out.fouten.push(t); return out; };
   if (!(p.m > 0)) return fout("m moet positief zijn.");
   if (!(p.eta > 0 && p.eta < 1)) return fout("Het rendement moet tussen 0 en 1 liggen.");
@@ -97,14 +102,14 @@ function berekenAbs(p) {
   if (abs) {
     out.wa = (1 - p.eta) * out.wb;
     out.ya = M.wy(out.wa);
-    if (!(out.wa > M.eqW(out.ua))) return fout(`y<sub>a</sub> = ${f(out.ya, 5)} ligt onder het evenwicht met de inkomende vloeistof (m·x<sub>a</sub> = ${f(p.m * p.xa, 5)}): dit rendement is met deze vloeistof niet te halen.`);
+    if (!(out.wa > M.eqW(out.ua))) return fout(`y<sub>a</sub> = ${f(out.ya, 5)} ligt onder het evenwicht met de inkomende vloeistof (y* = ${f(M.yeq(p.xa), 5)}): dit rendement is met deze vloeistof niet te halen.`);
     const haalbaar = (s) => { for (let i = 1; i <= 300; i++) { const w = out.wa + (out.wb - out.wa) * i / 300; if (!(out.ua + (w - out.wa) / s < M.eqU(w))) return false; } return true; };
     let hi = 1; while (!haalbaar(hi)) hi *= 2;
     out.smin = bisect((s) => haalbaar(s) ? 1 : -1, 1e-9, hi, 70);
   } else {
     out.ub = (1 - p.eta) * out.ua;
     out.xb = M.ux(out.ub);
-    if (!(out.wb < M.eqW(out.ub))) return fout(`Het stripgas (y<sub>b</sub> = ${f(p.yb, 5)}) is niet armer dan het evenwicht met x<sub>b</sub> (m·x<sub>b</sub> = ${f(p.m * out.xb, 5)}): dit rendement is met dit gas niet te halen.`);
+    if (!(out.wb < M.eqW(out.ub))) return fout(`Het stripgas (y<sub>b</sub> = ${f(p.yb, 5)}) is niet armer dan het evenwicht met x<sub>b</sub> (y* = ${f(M.yeq(out.xb), 5)}): dit rendement is met dit gas niet te halen.`);
     const haalbaar = (s) => { for (let i = 0; i <= 300; i++) { const u = out.ub + (out.ua - out.ub) * i / 300; if (!(out.wb + s * (u - out.ub) < M.eqW(u))) return false; } return true; };
     const shi = Math.min(1e9, (M.eqW(out.ua) - out.wb) / (out.ua - out.ub));
     out.smax = bisect((s) => haalbaar(s) ? 1 : -1, 1e-12, shi, 70);
@@ -132,9 +137,9 @@ function berekenAbs(p) {
     out.wa = out.wb + s * (out.ua - out.ub); out.ya = M.wy(out.wa);
   }
   out.s = s;
-  out.A = M.conc ? null : s / p.m;              // A = L/(mV)
-  out.Sf = M.conc ? null : p.m / s;            // S = mV/L
-  if (!M.conc) { if (abs) out.Amin = out.smin / p.m; else out.Smin = p.m / out.smax; }   // A = (L/L_min)·A_min, S = (V/V_min)·S_min
+  out.A = !M.lin ? null : s / p.m;              // A = L/(mV)
+  out.Sf = !M.lin ? null : p.m / s;            // S = mV/L
+  if (M.lin) { if (abs) out.Amin = out.smin / p.m; else out.Smin = p.m / out.smax; }   // A = (L/L_min)·A_min, S = (V/V_min)·S_min
   // pinchlocatie bij minimum
   out.pinch = (() => {
     const sm = abs ? out.smin : out.smax; let best = null, bd = Infinity;
@@ -151,7 +156,7 @@ function berekenAbs(p) {
   // platen
   out.ideaal = aTrappen(M, out, 1);
   out.werkelijk = p.etaM < 1 ? aTrappen(M, out, p.etaM) : out.ideaal;
-  if (!M.conc) {
+  if (M.lin) {
     if (abs) {
       const A = out.A, yas = p.m * p.xa, ybs = p.m * out.xb;
       out.kremser = Math.abs(A - 1) < 1e-9 ? (p.yb - out.ya) / (out.ya - yas) : Math.log((p.yb - ybs) / (out.ya - yas)) / Math.log(A);
@@ -168,15 +173,17 @@ function berekenAbs(p) {
     out.Vgem = Vgem; out.Lgem = Lgem;
     out.HOy = p.hmode === "H" ? p.HOy : Vgem / (p.Kya * p.Sd);
     out.Z = out.HOy * out.ov.NOy;
-    out.HOx = M.conc ? out.Z / out.ov.NOx : out.A * out.HOy;    // H_Ox = A·H_Oy (verdund)
+    out.HOx = !M.lin ? out.Z / out.ov.NOx : out.A * out.HOy;    // H_Ox = A·H_Oy (verdund)
   }
   // meldingen
-  if (abs && !M.conc && out.A < 1) out.info.push(`A = ${f(out.A, 3)} < 1: zelfs met oneindig veel platen kan hoogstens een fractie A·(1 − m·x<sub>a</sub>/y<sub>b</sub>) = ${f(out.A * (1 - p.m * p.xa / p.yb), 3)} geabsorbeerd worden. De pinch ligt dan onderaan de kolom.`);
-  if (!abs && !M.conc && out.Sf < 1) out.info.push(`S = ${f(out.Sf, 3)} < 1: de pinch ligt bovenaan; zelfs met oneindig veel platen is het gestripte rendement begrensd.`);
+  if (abs && M.lin && out.A < 1) out.info.push(`A = ${f(out.A, 3)} < 1: zelfs met oneindig veel platen kan hoogstens een fractie A·(1 − m·x<sub>a</sub>/y<sub>b</sub>) = ${f(out.A * (1 - p.m * p.xa / p.yb), 3)} geabsorbeerd worden. De pinch ligt dan onderaan de kolom.`);
+  if (!abs && M.lin && out.Sf < 1) out.info.push(`S = ${f(out.Sf, 3)} < 1: de pinch ligt bovenaan; zelfs met oneindig veel platen is het gestripte rendement begrensd.`);
+  if (M.k !== 0) out.info.push(`Gekromd evenwicht y* = ${f(p.m, 3)}·x ${p.k < 0 ? "−" : "+"} ${f(Math.abs(p.k), 3)}·x²: A, S, Kremser en Δy<sub>LM</sub> veronderstellen een rechte evenwichtslijn en gelden hier niet. Het aantal platen volgt grafisch, N<sub>Oy</sub> uit de integraal.` +
+    (out.pinch && Math.abs(out.pinch[0] - (abs ? out.ua + (out.wb - out.wa) / out.smin : out.ua)) > 1e-6 * Math.max(1, out.ua) && Math.abs(out.pinch[0] - (abs ? out.ua : out.ub)) > 1e-6 ? " De pinch ligt hier niet aan het uiteinde maar midden in de kolom (raaklijn)." : ""));
   if (M.conc) out.info.push("Geconcentreerd: de werklijn is recht in molverhoudingen X = x/(1 − x) en Y = y/(1 − y) met de inertstromen L′ en V′. Kremser geldt hier niet; het aantal platen volgt enkel grafisch.");
   if (p.etaM < 1 && p.type === "platen") out.info.push(`Murphree-efficiëntie η<sub>M</sub> = ${f(p.etaM, 2)}: de trappen stappen naar de gestreepte pseudo-evenwichtslijn.`);
-  if (!M.conc && out.kremser !== undefined && p.etaM === 1 && isFinite(out.ideaal.N) && Math.ceil(out.kremser - 1e-6) !== Math.ceil(out.ideaal.N - 1e-6)) out.waarsch.push(`Kremser (${f(out.kremser, 2)}) en de grafische methode (${f(out.ideaal.N, 2)}) geven een ander aantal platen.`);
-  if (p.type === "platen" && !M.conc && out.kremser !== undefined && isFinite(out.ideaal.N)) out.info.push(`Kremser geeft N = ${f(out.kremser, 2)}, de trappen grafisch ${f(out.ideaal.N, 2)} ideale platen. Het verschil zit enkel in de fractie van de laatste trap (grafisch lineair geïnterpoleerd). Afgerond geven beide ${Math.ceil(out.ideaal.N - 1e-6)} platen.`);
+  if (M.lin && out.kremser !== undefined && p.etaM === 1 && isFinite(out.ideaal.N) && Math.ceil(out.kremser - 1e-6) !== Math.ceil(out.ideaal.N - 1e-6)) out.waarsch.push(`Kremser (${f(out.kremser, 2)}) en de grafische methode (${f(out.ideaal.N, 2)}) geven een ander aantal platen.`);
+  if (p.type === "platen" && M.lin && out.kremser !== undefined && isFinite(out.ideaal.N)) out.info.push(`Kremser geeft N = ${f(out.kremser, 2)}, de trappen grafisch ${f(out.ideaal.N, 2)} ideale platen. Het verschil zit enkel in de fractie van de laatste trap (grafisch lineair geïnterpoleerd). Afgerond geven beide ${Math.ceil(out.ideaal.N - 1e-6)} platen.`);
   return out;
 }
 
@@ -195,7 +202,9 @@ function bouwAbsInvoer() {
   keuze(fs, "aproc", "proces", [["abs", "absorptie"], ["strip", "strippen"]]);
   keuze(fs, "atype", "type", [["platen", "evenwichtsplaten"], ["gepakt", "gepakte kolom"]]);
   keuze(fs, "aconc", "conc", [["verdund", "verdund (x, y)"], ["conc", "geconcentreerd (X, Y)"]]);
+  keuze(fs, "aev", "ev", [["lin", "recht: y* = m·x"], ["krom", "gekromd: y* = m·x + k·x²"]]);
   veld(fs, "m", "m (y* = m·x)", { min: 0.05, max: 100, log: true, rond: (v) => +v.toPrecision(3) });
+  veld(fs, "k", "k (·x²)", { min: -10, max: 20, dstep: 0.1, rond: (v) => +v.toFixed(2) });
   p.appendChild(fs);
 
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Inkomende stromen en rendement</legend>";
@@ -231,13 +240,16 @@ function aZetLabel(id, html) { const lab = AVELDEN[id].rij.querySelector("label"
 function aSync() {
   for (const [id, v] of Object.entries(AVELDEN)) v.set(AS_[id]);
   const zet = (naam, val) => document.querySelectorAll(`input[name=${naam}]`).forEach((r) => { r.checked = r.value === val; });
-  zet("aproc", AS_.proces); zet("atype", AS_.type); zet("aconc", AS_.conc); zet("aspec", AS_.spec); zet("ahm", AS_.hmode);
+  zet("aproc", AS_.proces); zet("atype", AS_.type); zet("aconc", AS_.conc); zet("aev", AS_.ev); zet("aspec", AS_.spec); zet("ahm", AS_.hmode);
 }
 
 // ---------------------------------------------------------------- update
 function aUpdate(snel) {
   const abs = AS_.proces === "abs", conc = AS_.conc === "conc";
-  if (conc && AS_.spec === "AS") AS_.spec = "fac";
+  const lin = !conc && AS_.ev !== "krom";
+  if (!lin && AS_.spec === "AS") AS_.spec = "fac";
+  aZetLabel("m", AS_.ev === "krom" ? "m" : "m (y* = m·x)");
+  AVELDEN.k.rij.style.display = AS_.ev === "krom" ? "" : "none";
   aZetLabel("G", abs ? "V (kmol/h)" : "L (kmol/h)");
   aZetLabel("eta", abs ? "geabsorbeerd" : "gestript");
   aZetLabel("fac", abs ? "L/L<sub>min</sub>" : "V/V<sub>min</sub>");
@@ -247,7 +259,7 @@ function aUpdate(snel) {
   $("#aStroomUitleg").innerHTML = abs
     ? `Gas V (inclusief opgeloste component) komt onderaan binnen met y<sub>b</sub>; de vloeistof komt bovenaan binnen met x<sub>a</sub>. Geabsorbeerd: fractie van de component in het gas${conc ? " (op basis van Y)" : ""}.`
     : `Vloeistof L komt bovenaan binnen met x<sub>a</sub>; het stripgas komt onderaan binnen met y<sub>b</sub>. Gestript: fractie van de component in de vloeistof${conc ? " (op basis van X)" : ""}.`;
-  AVELDEN.AS.rij.style.display = conc ? "none" : "";
+  AVELDEN.AS.rij.style.display = lin ? "" : "none";
   $("#aPlatenFs").hidden = AS_.type !== "platen";
   $("#aPakFs").hidden = AS_.type !== "gepakt";
   aSync();
@@ -266,6 +278,7 @@ function aUpdate(snel) {
 
 function aTekenOntwerpUitleg(r) {
   const abs = AS_.proces === "abs", u = $("#aOntwerpUitleg");
+  if (!r.lin && !r.conc) { u.innerHTML = `Gekromd evenwicht: ${abs ? "L" : "V"}<sub>min</sub> volgt uit de werklijn die de evenwichtslijn raakt; dat kan aan een uiteinde of midden in de kolom zijn. A en S zijn hier niet constant langs de kolom.`; return; }
   if (r.conc) { u.innerHTML = abs ? "Geconcentreerd: (L′/V′)<sub>min</sub> volgt uit de werklijn die de evenwichtslijn raakt in het X–Y-diagram; L = L′/(1 − x<sub>a</sub>)." : "Geconcentreerd: (V′/L′)<sub>min</sub> volgt uit de werklijn die de evenwichtslijn raakt in het X–Y-diagram."; return; }
   const fm = (v) => f(v, 3);
   if (abs) {
@@ -296,7 +309,7 @@ function aTekenKern(r) {
   let h = `<div class="status ${ok ? "ok" : "nok"}">${ok ? "Haalbaar" : "Niet haalbaar"}</div>`;
   if (AS_.type === "platen") {
     h += chip("ideale platen", (x) => N(x.ideaal.N));
-    if (!r.conc) h += chip("Kremser", (x) => x.kremser !== undefined ? N(x.kremser) : "–");
+    if (r.lin) h += chip("Kremser", (x) => x.kremser !== undefined ? N(x.kremser) : "–");
     if (AS_.etaM < 1) h += chip("werkelijke platen", (x) => isFinite(x.werkelijk.N) ? String(Math.ceil(x.werkelijk.N - 1e-9)) : "∞");
   } else {
     h += chip("N<sub>Oy</sub>", (x) => x.ov ? x.ov.NOy : NaN, 2) + chip("H<sub>Oy</sub> <small>m</small>", (x) => x.HOy, 2) +
@@ -304,7 +317,7 @@ function aTekenKern(r) {
   }
   h += chip(`${n.L}/${n.V}`, (x) => x.s, 3) +
     chip(abs ? `L/L<sub>min</sub>` : `V/V<sub>min</sub>`, (x) => x.fac, 2);
-  if (!r.conc) h += chip(abs ? "A = L/(mV)" : "S = mV/L", (x) => abs ? x.A : x.Sf, 3);
+  if (r.lin) h += chip(abs ? "A = L/(mV)" : "S = mV/L", (x) => abs ? x.A : x.Sf, 3);
   h += chip(abs ? "L <small>kmol/h</small>" : "V <small>kmol/h</small>", (x) => abs ? x.L : x.V, 1) +
     chip(abs ? "x<sub>b</sub> (uit)" : "y<sub>a</sub> (uit)", (x) => abs ? x.xb : x.ya, 5) +
     chip(abs ? "y<sub>a</sub> (uit)" : "x<sub>b</sub> (uit)", (x) => abs ? x.ya : x.xb, 5);
@@ -331,7 +344,7 @@ function aTekenMT(r) {
   // gepakte kolom: altijd in molfracties (zoals H3); platen: x–y of X–Y
   const frac = pak || !r.conc;
   const cu = frac ? M.ux : (u) => u, cw = frac ? M.wy : (w) => w;     // naar plotcoördinaten
-  const eqP = frac ? (x) => M.m * x : M.eqW;
+  const eqP = frac ? M.yeq : M.eqW;
   const opPts = (s, n = 120) => {   // werklijn in plotcoördinaten tussen top en bodem
     const pts = [];
     // absorptie: door de top (x_a, y_a); strippen: door de bodem (x_b, y_b)
@@ -424,7 +437,7 @@ function aTekenFac(r) {
     const v = pak ? (r.ov ? r.ov.NOy : NaN) : (AS_.etaM < 1 ? r.werkelijk.N : r.ideaal.N);
     if (isFinite(v) && v <= ymax) { el("circle", { cx: A.sx(r.fac), cy: A.sy(v), r: 5, class: "s-punt" }, svg); txt(svg, A.sx(r.fac) + 8, A.sy(v) - 8, `nu: ${f(v, 2)}`, "s-labr"); }
   }
-  const nAS = !r.conc && aOk(r) ? (abs ? `A = ${f(r.A / r.fac, 3)} × (L/L_{min})` : `S = ${f(r.Sf * r.fac, 3)} × (V/V_{min})`) : "";
+  const nAS = r.lin && aOk(r) ? (abs ? `A = ${f(r.A / r.fac, 3)} × (L/L_{min})` : `S = ${f(r.Sf * r.fac, 3)} × (V/V_{min})`) : "";
   if (nAS) txt(svg, Mg.l + A.pw - 8, Mg.t + 18, nAS, "s-labz", "end");
   $("#afacUitleg").innerHTML = (pak ? "Aantal transfereenheden N<sub>Oy</sub>" : "Aantal ideale platen (blauw)" + (wk ? " en werkelijke platen (gestreept)" : "")) +
     ` bij hetzelfde rendement, als functie van ${abs ? "L/L<sub>min</sub>" : "V/V<sub>min</sub>"}. Dicht bij het minimum stijgt het aantal sterk; ver erboven wint je weinig extra en kost het meer ${abs ? "oplosmiddel" : "stripgas"}.`;
@@ -486,7 +499,7 @@ function aTekenKolom(r) {
     const regel = pak ? (r.Z !== undefined ? `Z = ${f(r.Z, 2)} m  (N_{Oy} = ${f(r.ov.NOy, 2)}, H_{Oy} = ${f(r.HOy, 2)} m)` : "")
       : `${f(r.ideaal.N, 2)} ideale platen` + (AS_.etaM < 1 ? `, ${Math.ceil(r.werkelijk.N - 1e-9)} werkelijke` : "");
     txt(svg, cx, bot + 50, regel, "t-gew", "middle");
-    if (!r.conc) txt(svg, cx, bot + 72, abs ? `A = L/(mV) = ${f(r.A, 3)}` : `S = mV/L = ${f(r.Sf, 3)}`, "t-gew", "middle");
+    if (r.lin) txt(svg, cx, bot + 72, abs ? `A = L/(mV) = ${f(r.A, 3)}` : `S = mV/L = ${f(r.Sf, 3)}`, "t-gew", "middle");
   }
 }
 
@@ -507,19 +520,19 @@ function aTekenTabel(r) {
     kol("x<sub>a</sub> (vloeistof in)", (x) => x.xa, 5) + kol("x<sub>b</sub> (vloeistof uit)", (x) => x.xb, 5) +
     kol(abs ? "geabsorbeerd" : "gestript", (x) => 100 * x.p.eta, 2, "%") + "</tbody></table>";
   let t3 = kop("Verhoudingen") + kol(r.conc ? "L′/V′" : "L/V", (x) => x.s, 4) + kol((r.conc ? "(L′/V′)" : "(L/V)") + (abs ? "<sub>min</sub>" : "<sub>max</sub> (bij V<sub>min</sub>)"), (x) => abs ? x.smin : x.smax, 4);
-  if (!r.conc && abs) t3 += kol("absorptiefactor A = L/(mV)", (x) => x.A, 4) + kol("A<sub>min</sub> = (L/V)<sub>min</sub>/m", (x) => x.Amin, 4) + kol("A/A<sub>min</sub> = L/L<sub>min</sub>", (x) => x.A / x.Amin, 3);
-  if (!r.conc && !abs) t3 += kol("stripfactor S = mV/L", (x) => x.Sf, 4) + kol("S<sub>min</sub> = m·(V/L)<sub>min</sub>", (x) => x.Smin, 4) + kol("S/S<sub>min</sub> = V/V<sub>min</sub>", (x) => x.Sf / x.Smin, 3);
+  if (r.lin && abs) t3 += kol("absorptiefactor A = L/(mV)", (x) => x.A, 4) + kol("A<sub>min</sub> = (L/V)<sub>min</sub>/m", (x) => x.Amin, 4) + kol("A/A<sub>min</sub> = L/L<sub>min</sub>", (x) => x.A / x.Amin, 3);
+  if (r.lin && !abs) t3 += kol("stripfactor S = mV/L", (x) => x.Sf, 4) + kol("S<sub>min</sub> = m·(V/L)<sub>min</sub>", (x) => x.Smin, 4) + kol("S/S<sub>min</sub> = V/V<sub>min</sub>", (x) => x.Sf / x.Smin, 3);
   t3 += "</tbody></table>";
   let t4;
   if (AS_.type === "platen") {
-    t4 = kop("Platen") + kol("ideaal (grafisch)", (x) => x.ideaal.N, 2) + (r.conc ? "" : kol("ideaal (Kremser)", (x) => x.kremser, 2)) +
+    t4 = kop("Platen") + kol("ideaal (grafisch)", (x) => x.ideaal.N, 2) + (!r.lin ? "" : kol("ideaal (Kremser)", (x) => x.kremser, 2)) +
       (AS_.etaM < 1 ? kol("werkelijk (grafisch)", (x) => x.werkelijk.N, 2) + kol("werkelijke platen", (x) => isFinite(x.werkelijk.N) ? String(Math.ceil(x.werkelijk.N - 1e-9)) : "∞", 0) : "") + "</tbody></table>";
   } else {
     t4 = kop("Gepakte kolom") + kol("N<sub>Oy</sub> (integraal)", (x) => x.ov ? x.ov.NOy : NaN, 3) +
-      (r.conc ? "" : kol("N<sub>Oy</sub> = Δy/Δy<sub>LM</sub>", (x) => x.ov ? x.ov.NOyLM : NaN, 3)) +
+      (!r.lin ? "" : kol("N<sub>Oy</sub> = Δy/Δy<sub>LM</sub>", (x) => x.ov ? x.ov.NOyLM : NaN, 3)) +
       kol("H<sub>Oy</sub> (m)", (x) => x.HOy, 3) + kol("Z = H<sub>Oy</sub>·N<sub>Oy</sub> (m)", (x) => x.Z, 3) +
       kol("N<sub>Ox</sub> (integraal)", (x) => x.ov ? x.ov.NOx : NaN, 3) +
-      kol(r.conc ? "H<sub>Ox</sub> = Z/N<sub>Ox</sub> (m)" : "H<sub>Ox</sub> = A·H<sub>Oy</sub> (m)", (x) => x.HOx, 3) +
+      kol(!r.lin ? "H<sub>Ox</sub> = Z/N<sub>Ox</sub> (m)" : "H<sub>Ox</sub> = A·H<sub>Oy</sub> (m)", (x) => x.HOx, 3) +
       kol("controle H<sub>Ox</sub>·N<sub>Ox</sub> (m)", (x) => x.ov ? x.HOx * x.ov.NOx : NaN, 3) + "</tbody></table>";
   }
   $("#atabellen").innerHTML = t1 + t2 + t3 + t4;
