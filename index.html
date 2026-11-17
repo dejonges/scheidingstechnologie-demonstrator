@@ -682,6 +682,10 @@ function bereken(ev, inp) {
   // warmtestromen: λ van de stroom die van fase verandert
   const lam = inp.lambda || ev.s.lambda;
   const lamMix = (z) => z * lam[0] + (1 - z) * lam[1];
+  const dLam = Math.abs(lam[0] - lam[1]) / (0.5 * (lam[0] + lam[1]));
+  out.dLambda = dLam;
+  if (dLam > 0.10) out.info.push(`De verdampingswarmtes verschillen ${(100 * dLam).toFixed(0)}% (λ<sub>A</sub> = ${lam[0]}, λ<sub>B</sub> = ${lam[1]} kJ/mol). ` +
+    "Constante molaire overloop, waarop de rechte werklijnen steunen, is dan slechts een benadering; Q̇<sub>C</sub> en Q̇<sub>R</sub> gebruiken wel λ van het mengsel.");
   const yb = ev.y(xB);
   out.yb = yb;
   out.QC = V * lamMix(xD) * 1000 / 3600;       // kW (V in kmol/h, λ in kJ/mol = MJ/kmol)
@@ -879,7 +883,7 @@ const STANDAARD = {
   F: 100, zF: 0.50, xD: 0.95, xB: 0.05,
   qMode: "q", q: 1, fV: 0, TF: 25, cpL: 160, cpV: 100,
   mode: "Rfac", R: 2, Rfac: 1.5, VB: 2,
-  eta: 1, vast: false, voeding: 5, lam: 30,
+  eta: 1, vast: false, voeding: 5, lamA: 30, lamB: 30,
 };
 
 const PRESETS = [
@@ -973,14 +977,15 @@ function bouwInvoer() {
   let fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Systeem en evenwicht</legend>";
   const sel = document.createElement("select"); sel.id = "sys"; sel.style.width = "100%";
   for (const [k, s] of Object.entries(SYSTEMEN)) { const o = document.createElement("option"); o.value = k; o.textContent = s.naam; sel.appendChild(o); }
-  sel.addEventListener("change", () => { S.sys = sel.value; VIEW = null; update(); });
+  sel.addEventListener("change", () => { S.sys = sel.value; zetLambdaStd(); VELDEN.lamA.set(S.lamA); VELDEN.lamB.set(S.lamB); VIEW = null; update(); });
   fs.appendChild(sel);
   const ul = document.createElement("div"); ul.className = "uitleg"; ul.id = "sysUitleg"; fs.appendChild(ul);
   maakVeld(fs, "alpha", "α (rel. vluchtigh.)", { dstep: 0.1,  min: 1.05, max: 10, log: true, rond: (v) => +v.toFixed(2) });
   maakVeld(fs, "A12", "A<sub>12</sub> (Van Laar)", { dstep: 0.05,  min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
   maakVeld(fs, "A21", "A<sub>21</sub> (Van Laar)", { dstep: 0.05,  min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
   maakVeld(fs, "P", "druk P (kPa)", { min: 20, max: 500, log: true, rond: (v) => +v.toFixed(1) });
-  maakVeld(fs, "lam", "λ (kJ/mol)", { dstep: 0.5,  min: 10, max: 60, rond: (v) => +v.toFixed(1) });
+  maakVeld(fs, "lamA", "λ<sub>A</sub> (kJ/mol)", { dstep: 0.5, min: 10, max: 60, rond: (v) => +v.toFixed(1) });
+  maakVeld(fs, "lamB", "λ<sub>B</sub> (kJ/mol)", { dstep: 0.5, min: 10, max: 60, rond: (v) => +v.toFixed(1) });
   p.appendChild(fs);
 
   // voeding
@@ -1055,7 +1060,6 @@ function update(snel) {
   VELDEN.alpha.rij.querySelector("label").innerHTML = s.soort === "vanlaar" ? "α<sub>0</sub> (ideaal deel)" : "α (rel. vluchtigh.)";
   zichtbaar("A12", s.soort === "vanlaar"); zichtbaar("A21", s.soort === "vanlaar");
   zichtbaar("P", s.soort === "model");
-  zichtbaar("lam", s.soort === "alpha" || s.soort === "vanlaar");
   const heeftT = !!ev.T;
   $("#lab-qT").style.display = heeftT ? "" : "none";
   if (!heeftT && S.qMode === "T") { S.qMode = "q"; document.querySelectorAll('input[name=qm]').forEach((r) => { r.checked = r.value === "q"; }); }
@@ -1065,11 +1069,11 @@ function update(snel) {
   let su = s.uitleg;
   if (s.soort === "model" && S.sys === "be" && s.A) su += ` (A<sub>12</sub> = ${s.A[0].toFixed(3)}, A<sub>21</sub> = ${s.A[1].toFixed(3)})`;
   if (s.soort === "data") su += " Druk: 1 atm.";
-  $("#sysUitleg").innerHTML = su + ` <br>x en y: molfractie <b>${s.c1}</b>.`;
+  $("#sysUitleg").innerHTML = su + ` <br>x en y: molfractie <b>${s.c1}</b>.` + (s.soort === "alpha" || s.soort === "vanlaar" ? "" : ` A = ${s.c1}, B = ${s.c2}; λ = verdampingswarmte bij het kookpunt.`);
 
   // q
   let q = S.q, qtxt = "";
-  const lam = (s.soort === "alpha" || s.soort === "vanlaar") ? [S.lam, S.lam] : s.lambda;
+  const lam = [S.lamA, S.lamB];
   if (S.qMode === "f") { q = 1 - S.fV; qtxt = `q = 1 − f = ${f(q, 3)}`; }
   else if (S.qMode === "T" && heeftT) {
     const lamF = S.zF * lam[0] + (1 - S.zF) * lam[1];
@@ -1463,7 +1467,9 @@ function tekenTabel(r) {
     kol("Q̇<sub>C</sub> condensor", (x) => ok(x) ? x.QC : NaN, 0, "kW") + kol("Q̇<sub>R</sub> reboiler", (x) => ok(x) ? x.QR : NaN, 0, "kW", true) +
     kol("Q̇<sub>R</sub>/D", (x) => ok(x) ? x.QR / x.D : NaN, 2, "kW·h/kmol") +
     (ev.T ? kol("T top (kookpunt x<sub>D</sub>)", "Ttop", 1, "°C") + kol("T bodem (kookpunt x<sub>B</sub>)", "Tbodem", 1, "°C") + kol("kookpunt voeding", "Tvoeding", 1, "°C") : "") +
-    kol("y<sub>b</sub> (damp uit reboiler)", "yb", 4) + "</tbody></table>";
+    kol("y<sub>b</sub> (damp uit reboiler)", "yb", 4) +
+    kol("λ condensor (x<sub>D</sub>)", (x) => x.inp ? x.inp.xD * x.inp.lambda[0] + (1 - x.inp.xD) * x.inp.lambda[1] : NaN, 2, "kJ/mol") +
+    kol("λ reboiler (y<sub>b</sub>)", (x) => x.inp && isFinite(x.yb) ? x.yb * x.inp.lambda[0] + (1 - x.yb) * x.inp.lambda[1] : NaN, 2, "kJ/mol") + "</tbody></table>";
   $("#tabellen").innerHTML = t1 + t2 + t3 + t4;
   $("#tabellen").classList.toggle("metref", !!REF);
 
@@ -1494,10 +1500,11 @@ function zetReferentie() {
   update();
 }
 
-const HASHVELDEN = ["sys", "alpha", "A12", "A21", "P", "F", "zF", "xD", "xB", "qMode", "q", "fV", "TF", "cpL", "cpV", "mode", "R", "Rfac", "VB", "eta", "vast", "voeding", "lam"];
+const HASHVELDEN = ["sys", "alpha", "A12", "A21", "P", "F", "zF", "xD", "xB", "qMode", "q", "fV", "TF", "cpL", "cpV", "mode", "R", "Rfac", "VB", "eta", "vast", "voeding", "lamA", "lamB"];
 function schrijfHash() {
   const p = new URLSearchParams();
-  for (const k of HASHVELDEN) if (S[k] !== STANDAARD[k]) p.set(k, typeof S[k] === "number" ? +S[k].toPrecision(6) : S[k]);
+  const std = SYSTEMEN[S.sys].lambda;
+  for (const k of HASHVELDEN) if (S[k] !== STANDAARD[k] && !(k === "lamA" && S[k] === std[0]) && !(k === "lamB" && S[k] === std[1])) p.set(k, typeof S[k] === "number" ? +S[k].toPrecision(6) : S[k]);
   const h = p.toString();
   try { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); } catch (e) { /* bv. sandbox */ }
 }
@@ -1509,14 +1516,19 @@ function leesHash() {
     S[k] = typeof STANDAARD[k] === "number" ? parseFloat(v) : typeof STANDAARD[k] === "boolean" ? v === "true" : v;
   }
   if (!SYSTEMEN[S.sys]) S.sys = STANDAARD.sys;
+  const std = SYSTEMEN[S.sys].lambda;
+  if (!p.has("lamA")) S.lamA = p.has("lam") ? parseFloat(p.get("lam")) : std[0];
+  if (!p.has("lamB")) S.lamB = p.has("lam") ? parseFloat(p.get("lam")) : std[1];
 }
+
+function zetLambdaStd() { const l = SYSTEMEN[S.sys].lambda; S.lamA = l[0]; S.lamB = l[1]; }
 
 function init() {
   const ps = $("#preset");
   ps.innerHTML = '<option value="">— voorbeeld of oefening —</option>' + PRESETS.map((p, i) => `<option value="${i}">${p.naam.replace("R_D", "R_D")}</option>`).join("");
   ps.addEventListener("change", () => {
     if (ps.value === "") return;
-    S = Object.assign({}, STANDAARD, PRESETS[+ps.value].s); VIEW = null;
+    S = Object.assign({}, STANDAARD, PRESETS[+ps.value].s); zetLambdaStd(); VIEW = null;
     document.querySelectorAll("[data-zoom]").forEach((b) => b.classList.toggle("aan", b.dataset.zoom === "vol"));
     syncInvoer(); update(); ps.value = "";
   });

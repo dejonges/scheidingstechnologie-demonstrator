@@ -453,6 +453,10 @@ function bereken(ev, inp) {
   // warmtestromen: λ van de stroom die van fase verandert
   const lam = inp.lambda || ev.s.lambda;
   const lamMix = (z) => z * lam[0] + (1 - z) * lam[1];
+  const dLam = Math.abs(lam[0] - lam[1]) / (0.5 * (lam[0] + lam[1]));
+  out.dLambda = dLam;
+  if (dLam > 0.10) out.info.push(`De verdampingswarmtes verschillen ${(100 * dLam).toFixed(0)}% (λ<sub>A</sub> = ${lam[0]}, λ<sub>B</sub> = ${lam[1]} kJ/mol). ` +
+    "Constante molaire overloop, waarop de rechte werklijnen steunen, is dan slechts een benadering; Q̇<sub>C</sub> en Q̇<sub>R</sub> gebruiken wel λ van het mengsel.");
   const yb = ev.y(xB);
   out.yb = yb;
   out.QC = V * lamMix(xD) * 1000 / 3600;       // kW (V in kmol/h, λ in kJ/mol = MJ/kmol)
