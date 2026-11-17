@@ -641,7 +641,14 @@ function zetReferentie() {
 
 const HASHVELDEN = ["sys", "alpha", "A12", "A21", "P", "F", "zF", "xD", "xB", "qMode", "q", "fV", "TF", "cpL", "cpV", "mode", "R", "Rfac", "VB", "eta", "vast", "voeding", "lamA", "lamB"];
 const BHASH = ["sys", "alpha", "A12", "A21", "P", "lamA", "lamB", "W0", "x0", "xBe", "bmode", "N", "R", "xDdoel", "Vdeb"];
+const AHASH = Object.keys(ASTD);
 function schrijfHash() {
+  if (MODUS === "abs") {
+    const p = new URLSearchParams(); p.set("modus", "abs");
+    for (const k of AHASH) if (AS_[k] !== ASTD[k]) p.set(k, typeof AS_[k] === "number" ? +AS_[k].toPrecision(6) : AS_[k]);
+    try { history.replaceState(null, "", "#" + p.toString()); } catch (e) { /* bv. sandbox */ }
+    return;
+  }
   if (MODUS === "batch") {
     const p = new URLSearchParams(); p.set("modus", "batch");
     const std = SYSTEMEN[BS.sys].lambda;
@@ -658,6 +665,11 @@ function schrijfHash() {
 function leesHash() {
   const h = location.hash.slice(1); if (!h) return;
   const p = new URLSearchParams(h);
+  if (p.get("modus") === "abs") {
+    MODUS = "abs";
+    for (const k of AHASH) if (p.has(k)) { const v = p.get(k); AS_[k] = typeof ASTD[k] === "number" ? parseFloat(v) : v; }
+    return;
+  }
   if (p.get("modus") === "batch") {
     MODUS = "batch";
     for (const k of BHASH) if (p.has(k)) { const v = p.get(k); BS[k] = typeof BSTD[k] === "number" ? parseFloat(v) : v; }
@@ -703,7 +715,7 @@ function tekenKern(r) {
   zetKernHoogte();
 }
 function zetKernHoogte() {
-  const h = $(MODUS === "batch" ? "#bkern" : "#kern").getBoundingClientRect().height;
+  const h = $(MODUS === "batch" ? "#bkern" : MODUS === "abs" ? "#akern" : "#kern").getBoundingClientRect().height;
   document.documentElement.style.setProperty("--kernH", h + "px");
 }
 function koppelTabs() {
@@ -722,7 +734,7 @@ function zetLambdaStd() { const l = SYSTEMEN[S.sys].lambda; S.lamA = l[0]; S.lam
 
 let MODUS = "continu";
 function vulPresets() {
-  const lijst = MODUS === "batch" ? BPRESETS : PRESETS;
+  const lijst = MODUS === "batch" ? BPRESETS : MODUS === "abs" ? APRESETS : PRESETS;
   $("#preset").innerHTML = '<option value="">— voorbeeld of oefening —</option>' + lijst.map((p, i) => `<option value="${i}">${p.naam}</option>`).join("");
 }
 function zetModus(m) {
@@ -730,15 +742,20 @@ function zetModus(m) {
   document.querySelectorAll("#modusTabs [data-modus]").forEach((b) => { b.classList.toggle("aan", b.dataset.modus === m); b.setAttribute("aria-pressed", b.dataset.modus === m); });
   $("#main-continu").hidden = m !== "continu"; $("#kern").hidden = m !== "continu";
   $("#main-batch").hidden = m !== "batch"; $("#bkern").hidden = m !== "batch";
-  $(".sub").textContent = m === "batch" ? "Batchdestillatie: Rayleigh, constante reflux of constante topsamenstelling" : "Binaire destillatie volgens McCabe-Thiele";
+  $("#main-abs").hidden = m !== "abs"; $("#akern").hidden = m !== "abs";
+  $(".sub").innerHTML = { batch: "Batchdestillatie: Rayleigh, constante reflux of constante topsamenstelling", abs: "Absorptie en strippen: evenwichtsplaten (Kremser, McCabe-Thiele) en gepakte kolom (N<sub>Oy</sub>, H<sub>Oy</sub>)" }[m] || "Binaire destillatie volgens McCabe-Thiele";
   vulPresets();
-  zetRefKnop(m === "batch" ? !!BREF : !!REF);
-  if (m === "batch") bUpdate(); else update();
+  zetRefKnop(m === "batch" ? !!BREF : m === "abs" ? !!AREF : !!REF);
+  if (m === "batch") bUpdate(); else if (m === "abs") aUpdate(); else update();
 }
 function init() {
   const ps = $("#preset");
   ps.addEventListener("change", () => {
     if (ps.value === "") return;
+    if (MODUS === "abs") {
+      AS_ = Object.assign({}, ASTD, APRESETS[+ps.value].s);
+      aSync(); aUpdate(); ps.value = ""; return;
+    }
     if (MODUS === "batch") {
       BS = Object.assign({}, BSTD, BPRESETS[+ps.value].s);
       if (!("lamA" in BPRESETS[+ps.value].s)) { const l = SYSTEMEN[BS.sys].lambda; BS.lamA = l[0]; BS.lamB = l[1]; }
@@ -749,7 +766,7 @@ function init() {
     syncInvoer(); update(); ps.value = "";
   });
   document.querySelectorAll("#modusTabs [data-modus]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.modus !== MODUS) zetModus(b.dataset.modus); }));
-  $("#refKnop").addEventListener("click", () => (MODUS === "batch" ? bZetReferentie() : zetReferentie()));
+  $("#refKnop").addEventListener("click", () => (MODUS === "batch" ? bZetReferentie() : MODUS === "abs" ? aZetReferentie() : zetReferentie()));
   $("#linkKnop").addEventListener("click", async () => {
     schrijfHash();
     const url = location.href;
@@ -764,6 +781,8 @@ function init() {
   koppelReflux();
   bouwBatchInvoer();
   koppelBatch();
+  bouwAbsInvoer();
+  koppelAbs();
   const m = MODUS; MODUS = "continu"; update();
   zetModus(m);
 }

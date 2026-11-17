@@ -37,7 +37,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-#mt, #txy, #rfx, #bmt, #bverloop, #bray { max-height: calc(100vh - var(--kernH, 56px) - 170px); min-height: 300px; }
+#mt, #txy, #rfx, #bmt, #bverloop, #bray, #amt, #afac, #aint { max-height: calc(100vh - var(--kernH, 56px) - 170px); min-height: 300px; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--tekst); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rand); background: var(--paneel); }
@@ -51,9 +51,9 @@ button { background: var(--veld); border: 1px solid var(--rand); border-radius: 
 button:hover { border-color: var(--accent); }
 button.aan { background: var(--accent); color: #fff; border-color: var(--accent); }
 main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns: 290px minmax(0, 1fr); align-items: start; }
-#werk, #bwerk { display: grid; gap: 12px; min-width: 0; }
+#werk, #bwerk, #awerk { display: grid; gap: 12px; min-width: 0; }
 .paneel { background: var(--paneel); border: 1px solid var(--rand); border-radius: 10px; padding: 12px; min-width: 0; }
-#invoer, #binvoer { position: sticky; top: calc(var(--kernH, 56px) + 8px); max-height: calc(100vh - var(--kernH, 56px) - 16px); overflow: auto; overscroll-behavior: contain; }
+#invoer, #binvoer, #ainvoer { position: sticky; top: calc(var(--kernH, 56px) + 8px); max-height: calc(100vh - var(--kernH, 56px) - 16px); overflow: auto; overscroll-behavior: contain; }
 .kern { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: stretch; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--rand); }
 .kern .status { display: flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-weight: 650; font-size: 13px; border: 1px solid; }
 .kern .status.ok { background: var(--ok-bg); border-color: var(--ok-rand); }
@@ -86,8 +86,8 @@ main { display: grid; gap: 12px; padding: 12px 16px 24px; grid-template-columns:
 }
 @media (max-width: 760px) {
   main { grid-template-columns: 1fr; padding: 10px 10px 20px; }
-  #werk, #bwerk { order: -1; }
-  #invoer, #binvoer { position: static; max-height: none; }
+  #werk, #bwerk, #awerk { order: -1; }
+  #invoer, #binvoer, #ainvoer { position: static; max-height: none; }
   header { padding: 10px; }
   .kern { padding: 6px 10px; flex-wrap: nowrap; overflow-x: auto; }
 }
@@ -191,6 +191,9 @@ svg .b-xd { stroke: var(--blauw); fill: none; stroke-width: 2.2; }
 svg .b-xdgem { stroke: var(--paars, #7b4fb8); fill: none; stroke-width: 2; stroke-dasharray: 6 3; }
 svg .b-xb { stroke: var(--tekst); fill: none; stroke-width: 1.8; }
 svg .b-r { stroke: var(--zacht); fill: none; stroke-width: 1.6; stroke-dasharray: 4 3; }
+svg .a-dk { stroke: var(--paars); stroke-width: 1.6; fill: none; }
+svg .a-dk2 { stroke: var(--paars); stroke-width: 2.2; fill: none; }
+svg .a-vlak { fill: var(--paars); fill-opacity: .14; stroke: none; }
 svg .b-vlak { fill: var(--blauw); fill-opacity: .16; stroke: none; }
 </style>
 </head>
@@ -201,6 +204,7 @@ svg .b-vlak { fill: var(--blauw); fill-opacity: .16; stroke: none; }
     <nav class="modus" id="modusTabs" aria-label="Soort demonstratie">
       <button class="aan" data-modus="continu">Continue destillatie</button>
       <button data-modus="batch">Batchdestillatie</button>
+      <button data-modus="abs">Absorptie en strippen</button>
     </nav>
     <div class="sub">Binaire destillatie volgens McCabe-Thiele</div>
   </div>
@@ -213,6 +217,7 @@ svg .b-vlak { fill: var(--blauw); fill-opacity: .16; stroke: none; }
 </header>
 <div class="kern" id="kern" aria-live="polite"></div>
 <div class="kern" id="bkern" aria-live="polite" hidden></div>
+<div class="kern" id="akern" aria-live="polite" hidden></div>
 <main id="main-continu">
   <aside class="paneel" id="invoer" aria-label="Invoer"></aside>
   <div id="werk">
@@ -322,6 +327,55 @@ svg .b-vlak { fill: var(--blauw); fill-opacity: .16; stroke: none; }
     </section>
   </div>
 </main>
+<main id="main-abs" hidden>
+  <aside class="paneel" id="ainvoer" aria-label="Invoer absorptie"></aside>
+  <div id="awerk">
+    <section class="paneel" aria-label="Diagrammen absorptie">
+      <div class="tabs" role="tablist" id="atabs">
+        <button role="tab" data-atab="mt" class="aan">Werklijn en evenwichtslijn</button>
+        <button role="tab" data-atab="fac">Effect van het debiet</button>
+        <button role="tab" data-atab="int" hidden>Integraal N<sub>Oy</sub></button>
+      </div>
+      <div class="diagramRij">
+        <div class="diagram">
+          <div class="tabvak" id="atab-mt">
+            <svg id="amt" viewBox="0 0 640 600" role="img" aria-label="Werklijn en evenwichtslijn"></svg>
+            <div class="legenda" id="alegenda"></div>
+          </div>
+          <div class="tabvak" id="atab-fac" hidden>
+            <svg id="afac" viewBox="0 0 640 460" role="img" aria-label="Aantal platen of transfereenheden versus debiet"></svg>
+            <div class="uitleg" id="afacUitleg"></div>
+          </div>
+          <div class="tabvak" id="atab-int" hidden>
+            <svg id="aint" viewBox="0 0 640 460" role="img" aria-label="Grafische integraal voor N_Oy"></svg>
+            <div class="uitleg" id="aintUitleg"></div>
+          </div>
+        </div>
+        <div class="kolomVak">
+          <h2>Kolom</h2>
+          <svg id="akolom" viewBox="0 0 350 606" role="img" aria-label="Schema van de absorptie- of stripkolom"></svg>
+        </div>
+      </div>
+      <div class="meldingen" id="ameldingen"></div>
+    </section>
+    <section class="paneel" aria-label="Resultaten absorptie">
+      <details open><summary>Alle resultaten</summary><div class="tabellen" id="atabellen"></div></details>
+      <details><summary id="adetailSum">Detail</summary><div class="platentabel" id="adetail"></div></details>
+      <details class="probeer"><summary>Probeer dit (inzicht)</summary>
+      <ol>
+        <li>Verlaag L/L<sub>min</sub> stap voor stap naar 1. Waar ontstaat de pinch, en hoe snel stijgt het aantal platen? Bekijk ook het tabblad "Effect van het debiet".</li>
+        <li>Kies A = L/(mV) kleiner dan 1 en verhoog het gevraagde rendement. Waarom lukt meer dan A·100% nooit, hoeveel platen je ook toevoegt?</li>
+        <li>Vergelijk Kremser met de grafische trappen: bij verdunde systemen geven ze hetzelfde aantal platen.</li>
+        <li>Zet een referentie vast en schakel van evenwichtsplaten naar een gepakte kolom: vergelijk N (platen) met N<sub>Oy</sub>. Wanneer is N<sub>Oy</sub> groter, gelijk of kleiner dan N? (Kijk naar A.)</li>
+        <li>Kies geconcentreerd gas (10 tot 30 mol%): de werklijn is recht in X–Y maar gekromd in x–y. Wat verandert er aan het minimale debiet?</li>
+        <li>Verlaag de Murphree-efficiëntie: de pseudo-evenwichtslijn schuift naar de werklijn en het aantal werkelijke platen stijgt.</li>
+        <li>Bij de gepakte kolom: controleer dat H<sub>Ox</sub>·N<sub>Ox</sub> = H<sub>Oy</sub>·N<sub>Oy</sub> = Z.</li>
+      </ol>
+      </details>
+      <div class="voet">Veronderstellingen: evenwicht y* = m·x (constante m, isotherm), a = top en b = bodem, gas onderaan in en vloeistof bovenaan in (tegenstroom). Verdund: L en V constant, werklijn recht in x–y. Geconcentreerd: inertstromen L′ = L(1 − x<sub>a</sub>) en V′ = V(1 − y<sub>b</sub>) constant, werklijn recht in X–Y. Platen genummerd van boven naar beneden; Murphree-gasefficiëntie. Gepakte kolom: N<sub>Oy</sub> = ∫dy/(y − y*) (absorptie) of ∫dy/(y* − y) (strippen), Z = H<sub>Oy</sub>·N<sub>Oy</sub>; bij geconcentreerd gas met H<sub>Oy</sub> op het gemiddelde gasdebiet.</div>
+    </section>
+  </div>
+</main>
 <script>
 /*CORE*/
 </script>
@@ -330,6 +384,9 @@ svg .b-vlak { fill: var(--blauw); fill-opacity: .16; stroke: none; }
 </script>
 <script>
 /*BATCH*/
+</script>
+<script>
+/*ABS*/
 </script>
 <script>
 /*UI*/
