@@ -50,9 +50,14 @@ function maakVeld(parent, id, label, def) {
   lab.htmlFor = def.radio ? "" : "n-" + id;
   const rng = document.createElement("input"); rng.type = "range"; rng.min = 0; rng.max = 1000; rng.step = 1;
   rng.setAttribute("aria-label", label.replace(/<[^>]+>/g, ""));
-  const num = document.createElement("input"); num.type = "number"; num.id = "n-" + id; num.step = def.step || "any";
+  const num = document.createElement("input"); num.type = "text"; num.inputMode = "decimal"; num.id = "n-" + id; num.autocomplete = "off";
   if (def.min !== undefined) num.min = def.min; if (def.max !== undefined) num.max = def.max;
-  rij.append(lab, rng, num); parent.appendChild(rij);
+  const wrap = document.createElement("span"); wrap.className = "numwrap";
+  const pijlen = document.createElement("span"); pijlen.className = "pijlen";
+  const bOp = document.createElement("button"); bOp.type = "button"; bOp.textContent = "▲"; bOp.tabIndex = -1; bOp.setAttribute("aria-label", "verhoog");
+  const bNeer = document.createElement("button"); bNeer.type = "button"; bNeer.textContent = "▼"; bNeer.tabIndex = -1; bNeer.setAttribute("aria-label", "verlaag");
+  pijlen.append(bOp, bNeer); wrap.append(num, pijlen);
+  rij.append(lab, rng, wrap); parent.appendChild(rij);
   const toS = (v) => def.log ? 1000 * Math.log(v / def.min) / Math.log(def.max / def.min) : 1000 * (v - def.min) / (def.max - def.min);
   const vanS = (s) => def.log ? def.min * Math.pow(def.max / def.min, s / 1000) : def.min + (def.max - def.min) * s / 1000;
   const rond = (v) => def.rond ? def.rond(v) : v;
@@ -66,12 +71,36 @@ function maakVeld(parent, id, label, def) {
     if (def.radio && S[def.radioKey] !== def.radioVal) { S[def.radioKey] = def.radioVal; }
     S[id] = v; rng.value = Math.max(0, Math.min(1000, toS(v))); update();
   });
+  // eigen stappen (pijltjes en pijltoetsen), werkt in elke browser
+  const stapGrootte = (v, richting) => {
+    if (def.dstep) return def.dstep;
+    const a = Math.abs(v) || def.min || 1;
+    let e = Math.pow(10, Math.floor(Math.log10(a) + 1e-9) - 1);
+    if (richting < 0 && Math.abs(a - Math.pow(10, Math.round(Math.log10(a)))) < 1e-12 * a) e /= 10; // 1.0 -> 0.99
+    return e;
+  };
+  const stap = (richting) => {
+    let v = S[id]; if (!isFinite(v)) v = def.min;
+    const d = stapGrootte(v, richting);
+    let nv = Math.round((v + richting * d) / d) * d;
+    nv = Math.min(def.max, Math.max(def.min, +nv.toPrecision(10)));
+    if (def.radio && S[def.radioKey] !== def.radioVal) S[def.radioKey] = def.radioVal;
+    S[id] = nv; num.value = fmtIn(nv, def); rng.value = Math.max(0, Math.min(1000, toS(nv)));
+    if (def.radio) def.radioEl.checked = true;
+    update();
+  };
+  bOp.addEventListener("click", () => stap(+1));
+  bNeer.addEventListener("click", () => stap(-1));
+  num.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); stap(e.key === "ArrowUp" ? 1 : -1); }
+  });
+  num.addEventListener("wheel", (e) => { if (document.activeElement === num) e.preventDefault(); }, { passive: false });
   VELDEN[id] = { rij, rng, num, def, toS, set(v) { num.value = fmtIn(v, def); rng.value = Math.max(0, Math.min(1000, toS(v))); } };
 }
 function fmtIn(v, def) {
   if (!isFinite(v)) return "";
   if (def.dec !== undefined) return (+v).toFixed(def.dec);
-  if (Math.abs(v) < 0.01 && v !== 0) return (+v).toPrecision(3);
+  if (Math.abs(v) < 0.01 && v !== 0) return String(+(+v).toPrecision(3));
   return String(+(+v).toPrecision(5));
 }
 
@@ -85,17 +114,17 @@ function bouwInvoer() {
   sel.addEventListener("change", () => { S.sys = sel.value; VIEW = null; update(); });
   fs.appendChild(sel);
   const ul = document.createElement("div"); ul.className = "uitleg"; ul.id = "sysUitleg"; fs.appendChild(ul);
-  maakVeld(fs, "alpha", "α (rel. vluchtigh.)", { min: 1.05, max: 10, log: true, rond: (v) => +v.toFixed(2) });
-  maakVeld(fs, "A12", "A<sub>12</sub> (Van Laar)", { min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
-  maakVeld(fs, "A21", "A<sub>21</sub> (Van Laar)", { min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "alpha", "α (rel. vluchtigh.)", { dstep: 0.1,  min: 1.05, max: 10, log: true, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "A12", "A<sub>12</sub> (Van Laar)", { dstep: 0.05,  min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "A21", "A<sub>21</sub> (Van Laar)", { dstep: 0.05,  min: -1.5, max: 3, rond: (v) => +v.toFixed(2) });
   maakVeld(fs, "P", "druk P (kPa)", { min: 20, max: 500, log: true, rond: (v) => +v.toFixed(1) });
-  maakVeld(fs, "lam", "λ (kJ/mol)", { min: 10, max: 60, rond: (v) => +v.toFixed(1) });
+  maakVeld(fs, "lam", "λ (kJ/mol)", { dstep: 0.5,  min: 10, max: 60, rond: (v) => +v.toFixed(1) });
   p.appendChild(fs);
 
   // voeding
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Voeding</legend>";
   maakVeld(fs, "F", "F (kmol/h)", { min: 1, max: 1000, log: true, rond: (v) => +v.toPrecision(3) });
-  maakVeld(fs, "zF", "z<sub>F</sub>", { min: 0.01, max: 0.99, rond: (v) => +v.toFixed(3) });
+  maakVeld(fs, "zF", "z<sub>F</sub>", { dstep: 0.01,  min: 0.01, max: 0.99, rond: (v) => +v.toFixed(3) });
   const k = document.createElement("div"); k.className = "keuze"; k.id = "qKeuze";
   k.innerHTML = '<span class="klein">toestand via:</span>' +
     '<label><input type="radio" name="qm" value="q"> q</label>' +
@@ -103,24 +132,24 @@ function bouwInvoer() {
     '<label id="lab-qT"><input type="radio" name="qm" value="T"> temperatuur</label>';
   k.querySelectorAll("input").forEach((r) => r.addEventListener("change", () => { S.qMode = r.value; update(); }));
   fs.appendChild(k);
-  maakVeld(fs, "q", "q", { min: -1, max: 2, rond: (v) => +v.toFixed(3) });
-  maakVeld(fs, "fV", "dampfractie f", { min: 0, max: 1, rond: (v) => +v.toFixed(3) });
-  maakVeld(fs, "TF", "T<sub>F</sub> (°C)", { min: 0, max: 200, rond: (v) => +v.toFixed(1) });
-  maakVeld(fs, "cpL", "c<sub>p,L</sub> (kJ/kmol·K)", { min: 50, max: 300, rond: (v) => Math.round(v) });
-  maakVeld(fs, "cpV", "c<sub>p,V</sub> (kJ/kmol·K)", { min: 20, max: 200, rond: (v) => Math.round(v) });
+  maakVeld(fs, "q", "q", { dstep: 0.05,  min: -1, max: 2, rond: (v) => +v.toFixed(3) });
+  maakVeld(fs, "fV", "dampfractie f", { dstep: 0.05,  min: 0, max: 1, rond: (v) => +v.toFixed(3) });
+  maakVeld(fs, "TF", "T<sub>F</sub> (°C)", { dstep: 1,  min: 0, max: 200, rond: (v) => +v.toFixed(1) });
+  maakVeld(fs, "cpL", "c<sub>p,L</sub> (kJ/kmol·K)", { dstep: 5,  min: 50, max: 300, rond: (v) => Math.round(v) });
+  maakVeld(fs, "cpV", "c<sub>p,V</sub> (kJ/kmol·K)", { dstep: 5,  min: 20, max: 200, rond: (v) => Math.round(v) });
   const qi = document.createElement("div"); qi.className = "uitleg"; qi.id = "qUitleg"; fs.appendChild(qi);
   p.appendChild(fs);
 
   // producten
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Gewenste zuiverheid</legend>";
-  maakVeld(fs, "xD", "x<sub>D</sub> (top)", { min: 0.5, max: 0.9999, rond: (v) => +v.toFixed(4) });
+  maakVeld(fs, "xD", "x<sub>D</sub> (top)", { dstep: 0.005,  min: 0.5, max: 0.9999, rond: (v) => +v.toFixed(4) });
   maakVeld(fs, "xB", "x<sub>B</sub> (bodem)", { min: 0.0001, max: 0.4, log: true, rond: (v) => +v.toPrecision(3) });
   p.appendChild(fs);
 
   // reflux
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Reflux of boilup (kies er één)</legend>";
   maakVeld(fs, "R", "R<sub>D</sub> = L/D", { min: 0.05, max: 30, log: true, rond: (v) => +v.toPrecision(3), radio: "rm", radioVal: "R", radioKey: "mode" });
-  maakVeld(fs, "Rfac", "R<sub>D</sub>/R<sub>D,min</sub>", { min: 1.0, max: 5, rond: (v) => +v.toFixed(2), radio: "rm", radioVal: "Rfac", radioKey: "mode" });
+  maakVeld(fs, "Rfac", "R<sub>D</sub>/R<sub>D,min</sub>", { dstep: 0.05,  min: 1.0, max: 5, rond: (v) => +v.toFixed(2), radio: "rm", radioVal: "Rfac", radioKey: "mode" });
   maakVeld(fs, "VB", "V<sub>B</sub> = V̄/B", { min: 0.05, max: 40, log: true, rond: (v) => +v.toPrecision(3), radio: "rm", radioVal: "VB", radioKey: "mode" });
   const ru = document.createElement("div"); ru.className = "uitleg";
   ru.innerHTML = "Met F, z<sub>F</sub>, q, x<sub>D</sub> en x<sub>B</sub> vast, bepaalt één van deze drie de andere twee.";
@@ -129,13 +158,13 @@ function bouwInvoer() {
 
   // kolom
   fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Kolom</legend>";
-  maakVeld(fs, "eta", "η<sub>M</sub> (Murphree)", { min: 0.2, max: 1, rond: (v) => +v.toFixed(2) });
+  maakVeld(fs, "eta", "η<sub>M</sub> (Murphree)", { dstep: 0.05,  min: 0.2, max: 1, rond: (v) => +v.toFixed(2) });
   const kv = document.createElement("div"); kv.className = "keuze";
   kv.innerHTML = '<label><input type="checkbox" id="vastChk"> vaste voedingsplaat (i.p.v. optimaal)</label>';
   fs.appendChild(kv);
   $("#invoer").appendChild(fs);
   $("#vastChk").addEventListener("change", (e) => { S.vast = e.target.checked; update(); });
-  maakVeld(fs, "voeding", "voedingsplaat", { min: 1, max: 60, step: 1, rond: (v) => Math.round(v), dec: 0 });
+  maakVeld(fs, "voeding", "voedingsplaat", { dstep: 1,  min: 1, max: 60, step: 1, rond: (v) => Math.round(v), dec: 0 });
   p.appendChild(fs);
   syncInvoer();
 }

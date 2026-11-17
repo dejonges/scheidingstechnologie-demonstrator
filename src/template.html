@@ -70,8 +70,13 @@ legend { font-weight: 650; font-size: 13px; padding: 0; margin-bottom: 4px; }
 .rij { display: grid; grid-template-columns: 92px 1fr 74px; gap: 6px; align-items: center; margin: 5px 0; }
 .rij label { font-size: 13px; white-space: nowrap; }
 .rij input[type=range] { width: 100%; accent-color: var(--accent); }
-.rij input[type=number] { width: 74px; background: var(--veld); border: 1px solid var(--rand); border-radius: 5px; padding: 2px 4px; text-align: right; }
-.rij input[type=number]:disabled { color: var(--zacht); }
+.numwrap { display: flex; width: 74px; border: 1px solid var(--rand); border-radius: 5px; background: var(--veld); overflow: hidden; }
+.numwrap:focus-within { border-color: var(--accent); }
+.numwrap input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 2px 4px; text-align: right; font: inherit; color: var(--tekst); outline: none; }
+.pijlen { display: flex; flex-direction: column; border-left: 1px solid var(--rand); }
+.pijlen button { flex: 1; border: 0; border-radius: 0; padding: 0 4px; font-size: 8px; line-height: 1; background: transparent; color: var(--zacht); cursor: pointer; }
+.pijlen button:hover { background: var(--accent); color: #fff; }
+.pijlen button + button { border-top: 1px solid var(--rand); }
 .rij.radio label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
 .rij.uit { opacity: .78; }
 .rij.uit input[type=range] { opacity: .45; }
