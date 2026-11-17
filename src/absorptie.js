@@ -193,7 +193,7 @@ function bouwAbsInvoer() {
   };
   let fs = document.createElement("fieldset"); fs.innerHTML = "<legend>Proces en kolom</legend>";
   keuze(fs, "aproc", "proces", [["abs", "absorptie"], ["strip", "strippen"]]);
-  keuze(fs, "atype", "type", [["platen", "evenwichtsplaten (H4)"], ["gepakt", "gepakte kolom (H3)"]]);
+  keuze(fs, "atype", "type", [["platen", "evenwichtsplaten"], ["gepakt", "gepakte kolom"]]);
   keuze(fs, "aconc", "conc", [["verdund", "verdund (x, y)"], ["conc", "geconcentreerd (X, Y)"]]);
   veld(fs, "m", "m (y* = m·x)", { min: 0.05, max: 100, log: true, rond: (v) => +v.toPrecision(3) });
   p.appendChild(fs);
